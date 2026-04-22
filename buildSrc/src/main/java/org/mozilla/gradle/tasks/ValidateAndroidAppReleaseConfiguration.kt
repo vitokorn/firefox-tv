@@ -67,7 +67,7 @@ open class ValidateAndroidAppReleaseConfiguration : DefaultTask() {
             return gitTag.drop(1) // remove "v"
         }
 
-        val buildVersionName = project.androidDSLOrThrow().extension.defaultConfig.versionName
+        val buildVersionName = project.extensions.getByType(com.android.build.gradle.AppExtension::class.java).defaultConfig.versionName
         val gitTagVersionName = getGitTagVersionName()
         if (buildVersionName != gitTagVersionName) {
             throw IllegalStateException("Expected build.gradle versionName, $buildVersionName, " +

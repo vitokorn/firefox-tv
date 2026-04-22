@@ -5,8 +5,11 @@
 package org.mozilla.gradle.ext
 
 fun Runtime.execWaitForStdOut(cmd: String): String {
-    return Runtime.getRuntime().exec(cmd).let { process ->
-        process.waitFor()
-        process.inputStream.bufferedReader().use { it.readText() }
-    }
+    return ProcessBuilder(*cmd.split("\\s".toRegex()).toTypedArray())
+        .redirectErrorStream(true)
+        .start()
+        .let { process ->
+            process.waitFor()
+            process.inputStream.bufferedReader().use { it.readText() }
+        }
 }

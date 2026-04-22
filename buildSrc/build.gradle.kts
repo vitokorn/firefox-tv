@@ -8,10 +8,10 @@ plugins {
 
 repositories {
     google()
-    jcenter()
+    mavenCentral()
 }
 
 dependencies {
     // We cannot share dependencies with the project because we can't access buildscript.ext.
-    implementation("com.android.tools.build:gradle:3.4.1")
+    implementation("com.android.tools.build:gradle:8.12.0")
 }
