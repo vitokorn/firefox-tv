@@ -7,6 +7,8 @@ package org.mozilla.tv.firefox.webrender
 import android.content.Context
 import mozilla.components.browser.engine.gecko.GeckoEngine
 import mozilla.components.browser.session.SessionManager
+import mozilla.components.browser.session.usecases.EngineSessionUseCases
+import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.concept.engine.DefaultSettings
 import mozilla.components.concept.engine.Engine
 import mozilla.components.feature.session.SessionUseCases
@@ -50,8 +52,7 @@ class WebRenderComponents(applicationContext: Context, systemUserAgent: String) 
                 runtimeSettingsBuilder.extras(extras)
             }
         }
-        runtimeSettingsBuilder.autoplayDefault(GeckoRuntimeSettings.AUTOPLAY_DEFAULT_ALLOWED)
-
+        // autoplayDefault removed in v56+ GeckoRuntimeSettings. Autoplay now configured via DefaultSettings.mediaPlaybackRequiresUserGesture.
         val runtime = GeckoRuntime.create(applicationContext,
                 runtimeSettingsBuilder.build())
 
@@ -74,7 +75,11 @@ class WebRenderComponents(applicationContext: Context, systemUserAgent: String) 
         ), runtime)
     }
 
+    val store by lazy { BrowserStore() }
+
     val sessionManager by lazy { SessionManager(engine) }
 
     val sessionUseCases by lazy { SessionUseCases(sessionManager) }
+
+    val engineSessionUseCases by lazy { EngineSessionUseCases(sessionManager) }
 }

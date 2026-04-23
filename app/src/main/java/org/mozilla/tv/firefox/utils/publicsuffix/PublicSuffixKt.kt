@@ -5,6 +5,7 @@
 package org.mozilla.tv.firefox.utils.publicsuffix
 
 import android.content.Context
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 
@@ -15,6 +16,7 @@ internal object PublicSuffixKt {
     // define the code here. The common pool is defined by ForkJoinPool.commonPool() on API 24+ but
     // it's created by Kotlin on lower API levels (we support 22+).
     @JvmStatic
+    @OptIn(DelicateCoroutinesApi::class)
     fun init(context: Context) {
         // We don't care for the result: we just want to call this method so it caches the file from disk.
         GlobalScope.launch { PublicSuffixPatterns.getExactSet(context) }

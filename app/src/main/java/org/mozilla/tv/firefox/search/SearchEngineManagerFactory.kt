@@ -5,6 +5,7 @@
 package org.mozilla.tv.firefox.search
 
 import android.app.Application
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import mozilla.components.browser.search.SearchEngineManager
@@ -29,6 +30,7 @@ object SearchEngineManagerFactory {
     val AMAZON_SEARCH_CODE = "google-b-amzftv"
     val AMAZON_SEARCH_CODE_US_ONLY = "google-b-1-amzftv"
 
+    @OptIn(DelicateCoroutinesApi::class)
     fun create(app: Application): SearchEngineManager {
         return SearchEngineManager(listOf(engineProvider)).apply {
             GlobalScope.launch {

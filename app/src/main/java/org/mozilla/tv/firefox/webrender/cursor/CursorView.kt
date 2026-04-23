@@ -17,8 +17,8 @@ import io.reactivex.rxkotlin.addTo
 import org.mozilla.tv.firefox.R
 import java.util.concurrent.TimeUnit
 
-private const val BITMAP_PRESSED = R.drawable.cursor_full_active
-private const val BITMAP_UNPRESSED = R.drawable.cursor_full
+private val BITMAP_PRESSED = R.drawable.cursor_full_active
+private val BITMAP_UNPRESSED = R.drawable.cursor_full
 private const val HIDE_ANIMATION_DURATION_MILLIS = 250L
 private val HIDE_AFTER_MILLIS = TimeUnit.SECONDS.toMillis(3)
 
@@ -80,7 +80,7 @@ class CursorView(context: Context, attrs: AttributeSet) : AppCompatImageView(con
         return compositeDisposable
     }
 
-    override fun onDraw(canvas: Canvas?) {
+    override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         // The amount that this view must be offset for it to appear centered
         // (otherwise the PointF we set would be its top left corner)

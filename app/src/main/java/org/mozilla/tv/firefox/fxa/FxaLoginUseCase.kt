@@ -8,6 +8,7 @@ import android.net.Uri
 import androidx.fragment.app.FragmentManager
 import io.reactivex.Observable
 import io.reactivex.subjects.PublishSubject
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -52,6 +53,7 @@ class FxaLoginUseCase(
     /**
      * Opens the browser screen and loads the FxA login URL to begin the login flow.
      */
+    @OptIn(DelicateCoroutinesApi::class)
     fun beginLogin(fragmentManager: FragmentManager) {
         // TODO: should we throw an error if we're already authenticated when this is called?
         GlobalScope.launch(Dispatchers.Main) { // main thread: we modify UI state.

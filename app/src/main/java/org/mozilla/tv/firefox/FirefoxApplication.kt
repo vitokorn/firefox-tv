@@ -15,12 +15,13 @@ import mozilla.components.concept.engine.utils.EngineVersion
 import mozilla.components.lib.fetch.okhttp.OkHttpClient
 import mozilla.components.service.glean.Glean
 import mozilla.components.service.glean.config.Configuration
+import mozilla.components.service.glean.net.ConceptFetchHttpUploader
+import mozilla.components.lib.fetch.httpurlconnection.HttpURLConnectionClient
 import mozilla.components.support.base.log.Log
 import mozilla.components.support.base.log.sink.AndroidLogSink
 import mozilla.components.support.ktx.android.content.runOnlyInMainProcess
 import mozilla.components.support.ktx.android.os.resetAfter
 import mozilla.components.support.rusthttp.RustHttpConfig
-import org.mozilla.tv.firefox.GleanMetrics.LegacyIds
 import org.mozilla.tv.firefox.components.locale.LocaleAwareApplication
 import org.mozilla.tv.firefox.ext.webRenderComponents
 import org.mozilla.tv.firefox.telemetry.SentryIntegration
@@ -77,11 +78,6 @@ open class FirefoxApplication : LocaleAwareApplication() {
 
             enableStrictMode()
 
-            // For now, ignore the violations (a-c#4166)
-            StrictMode.allowThreadDiskReads().resetAfter {
-                serviceLocator.admIntegration.initPush()
-            }
-
             visibilityLifeCycleCallback = VisibilityLifeCycleCallback(this).also {
                 registerActivityLifecycleCallbacks(it)
             }
@@ -111,7 +107,7 @@ open class FirefoxApplication : LocaleAwareApplication() {
                 // off data collection
                 Glean.setUploadEnabled(collectionEnabled)
                 if (collectionEnabled) {
-                    LegacyIds.clientId.set(UUID.fromString(TelemetryIntegration.INSTANCE.clientId))
+                    // LegacyIds.clientId.set(UUID.fromString(TelemetryIntegration.INSTANCE.clientId))
                 }
             }
         }
@@ -119,8 +115,15 @@ open class FirefoxApplication : LocaleAwareApplication() {
 
     private fun initGlean() {
         setGleanUpload()
-        LegacyIds.clientId.set(UUID.fromString(TelemetryIntegration.INSTANCE.clientId))
-        Glean.initialize(applicationContext, Configuration(channel = BuildConfig.BUILD_TYPE))
+        // LegacyIds.clientId.set(UUID.fromString(TelemetryIntegration.INSTANCE.clientId))
+        Glean.initialize(
+            applicationContext,
+            uploadEnabled = true,
+            configuration = Configuration(
+                httpClient = ConceptFetchHttpUploader(lazy { HttpURLConnectionClient() }),
+                channel = BuildConfig.BUILD_TYPE
+            )
+        )
     }
 
     // ServiceLocator needs to be created in onCreate in order to accept Application
@@ -148,6 +151,7 @@ open class FirefoxApplication : LocaleAwareApplication() {
         StrictMode.setVmPolicy(vmPolicyBuilder.build())
     }
 
+    @Suppress("DEPRECATION")
     override fun onLowMemory() {
         super.onLowMemory()
         OkHttpWrapper.onLowMemory()

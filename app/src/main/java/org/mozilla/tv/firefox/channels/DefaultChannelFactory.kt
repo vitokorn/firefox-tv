@@ -6,7 +6,7 @@ package org.mozilla.tv.firefox.channels
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
-import kotlinx.android.synthetic.main.default_channel.view.channelTileContainer
+import androidx.recyclerview.widget.RecyclerView
 import org.mozilla.tv.firefox.R
 import org.mozilla.tv.firefox.architecture.KillswitchLayout
 
@@ -25,7 +25,9 @@ class DefaultChannelFactory(
         val channelAdapter = DefaultChannelAdapter(context, loadUrl, onTileFocused, channelConfig)
 
         val containerView = LayoutInflater.from(context).inflate(R.layout.default_channel, parent, false) as KillswitchLayout
-        containerView.channelTileContainer.apply {
+        val channelTileContainer: RecyclerView = containerView.findViewById(R.id.channelTileContainer)
+
+        channelTileContainer.apply {
             val channelLayoutManager = ChannelLayoutManager(context)
             layoutManager = channelLayoutManager
 
@@ -44,7 +46,7 @@ class DefaultChannelFactory(
             isAllowedByCurrentExperiment = channelConfig.isEnabledInCurrentExperiment,
             allowedInLocales = channelConfig.enabledInLocales
         )
-        if (id != null) containerView.channelTileContainer.id = id
+        if (id != null) channelTileContainer.id = id
 
         return DefaultChannel(
                 channelContainer = containerView,

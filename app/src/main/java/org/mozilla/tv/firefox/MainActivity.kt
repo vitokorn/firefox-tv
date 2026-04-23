@@ -13,14 +13,14 @@ import android.util.AttributeSet
 import android.util.Log
 import android.view.KeyEvent
 import android.view.View
+import android.widget.FrameLayout
+import android.widget.TextView
 import androidx.lifecycle.Observer
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.rxkotlin.addTo
 import io.sentry.Sentry
-import kotlinx.android.synthetic.main.activity_main.container_navigation_overlay
-import kotlinx.android.synthetic.main.overlay_debug.debugLog
 import mozilla.components.browser.session.Session
 import mozilla.components.concept.engine.EngineView
 import mozilla.components.support.base.observer.Consumable
@@ -52,6 +52,7 @@ interface MediaSessionHolder {
 class MainActivity : LocaleAwareAppCompatActivity(), OnUrlEnteredListener, MediaSessionHolder {
     private val LOG_TAG = "MainActivity"
     private val startStopCompositeDisposable = CompositeDisposable()
+    private lateinit var navigationOverlayContainer: FrameLayout
 
     // There should be at most one MediaSession per process, hence it's in MainActivity.
     // We crash if we init MediaSession at init time, hence lateinit.
@@ -75,9 +76,11 @@ class MainActivity : LocaleAwareAppCompatActivity(), OnUrlEnteredListener, Media
 
         lifecycle.addObserver(serviceLocator.engineViewCache)
 
+        @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
 
         setContentView(R.layout.activity_main)
+        navigationOverlayContainer = findViewById(R.id.container_navigation_overlay)
 
         val intentData = IntentValidator.validateOnCreate(this, safeIntent, savedInstanceState)
 
@@ -103,6 +106,7 @@ class MainActivity : LocaleAwareAppCompatActivity(), OnUrlEnteredListener, Media
 
         // Debug logging display for non public users
         // TODO: refactor out the debug variant visibility check in #1953
+        val debugLog: TextView = findViewById(R.id.debugLog)
         BuildConstants.debugLogStr?.apply {
             val engineViewVersion = (this@MainActivity as Context).application.getEngineViewVersion()
             debugLog.visibility = View.VISIBLE
@@ -125,8 +129,7 @@ class MainActivity : LocaleAwareAppCompatActivity(), OnUrlEnteredListener, Media
     private fun getOrCreateSession(intentData: ValidatedIntentData?): Session {
         return webRenderComponents.sessionManager.selectedSession
             ?: Session(
-                initialUrl = intentData?.url ?: URLs.APP_URL_HOME,
-                source = intentData?.source ?: Session.Source.NONE
+                initialUrl = intentData?.url ?: URLs.APP_URL_HOME
             ).also { webRenderComponents.sessionManager.add(it, selected = true) }
     }
 
@@ -205,11 +208,7 @@ class MainActivity : LocaleAwareAppCompatActivity(), OnUrlEnteredListener, Media
             }
             .addTo(startStopCompositeDisposable)
 
-        observeReceivedTabs().addTo(startStopCompositeDisposable)
-
-        // TODO remove this after FxA adds push event for revoked logins
-        // See: https://github.com/mozilla/application-services/issues/1418
-        serviceLocator.fxaRepo.pollAccountState()
+        // Received tabs and polling removed with ADMIntegration in v56+.
     }
 
     override fun onStop() {
@@ -236,6 +235,7 @@ class MainActivity : LocaleAwareAppCompatActivity(), OnUrlEnteredListener, Media
              *
              * See [EngineSession.resetView] for additional context
              */
+            @Suppress("DEPRECATION")
             webRenderComponents.sessionManager.getEngineSession()?.resetView(applicationContext)
         }
         super.onDestroy()
@@ -264,7 +264,7 @@ class MainActivity : LocaleAwareAppCompatActivity(), OnUrlEnteredListener, Media
     }
 
     override fun onNonTextInputUrlEntered(urlStr: String) {
-        ViewUtils.hideKeyboard(container_navigation_overlay)
+        ViewUtils.hideKeyboard(navigationOverlayContainer)
         serviceLocator.screenController.onUrlEnteredInner(this, supportFragmentManager, urlStr, false,
                 null, null)
     }
@@ -274,7 +274,7 @@ class MainActivity : LocaleAwareAppCompatActivity(), OnUrlEnteredListener, Media
         autocompleteResult: InlineAutocompleteEditText.AutocompleteResult?,
         inputLocation: UrlTextInputLocation?
     ) {
-        ViewUtils.hideKeyboard(container_navigation_overlay)
+        ViewUtils.hideKeyboard(navigationOverlayContainer)
         // It'd be much cleaner/safer to do this with a kotlin callback.
         serviceLocator.screenController.onUrlEnteredInner(this, supportFragmentManager, urlStr, true,
                 autocompleteResult, inputLocation)
@@ -298,23 +298,4 @@ class MainActivity : LocaleAwareAppCompatActivity(), OnUrlEnteredListener, Media
                 super.dispatchKeyEvent(event)
     }
 
-    private fun observeReceivedTabs(): Disposable {
-        fun openReceivedFxaTab(receivedTab: FxaReceivedTab) {
-            // TODO: Gracefully handle receiving multiple tabs around the same time. #2777
-            serviceLocator.screenController.showBrowserScreenForUrl(supportFragmentManager, receivedTab.url)
-            ViewUtils.showCenteredBottomToast(this, receivedTab.tabReceivedNotificationText.resolve(resources))
-        }
-
-        return serviceLocator.fxaRepo.receivedTabs
-            // We ensure that this is on the main thread because it provokes a fragment transaction,
-            // and we want to avoid potential issues that could be caused by starting two in parallel
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribe { consumableTab ->
-                consumableTab.consume { tab ->
-                    TelemetryIntegration.INSTANCE.receivedTabEvent(tab.metadata)
-                    openReceivedFxaTab(tab)
-                    true // Consume value
-                }
-            }
-    }
 }

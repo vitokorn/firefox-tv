@@ -58,6 +58,7 @@ class NavigationOverlayBehavior(context: Context, attrs: AttributeSet) : Coordin
                 child.y = 0f
             }
         }
+        @Suppress("DEPRECATION")
         super.onNestedScroll(coordinatorLayout, child, target, dxConsumed, dyConsumed, dxUnconsumed, dyUnconsumed, type)
     }
 }

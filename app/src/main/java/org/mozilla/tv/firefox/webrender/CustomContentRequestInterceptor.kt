@@ -27,7 +27,16 @@ class CustomContentRequestInterceptor(
 
     private var currentPageURL = ""
 
-    override fun onLoadRequest(session: EngineSession, uri: String): RequestInterceptor.InterceptionResponse.Content? {
+    override fun onLoadRequest(
+        engineSession: EngineSession,
+        uri: String,
+        lastUri: String?,
+        hasUserGesture: Boolean,
+        isSameDomain: Boolean,
+        isRedirect: Boolean,
+        isDirectNavigation: Boolean,
+        isSubframeRequest: Boolean
+    ): RequestInterceptor.InterceptionResponse? {
         currentPageURL = uri
 
         return when (uri) {
@@ -55,10 +64,14 @@ class CustomContentRequestInterceptor(
         }
     }
 
-    override fun onErrorRequest(session: EngineSession, errorType: ErrorType, uri: String?): RequestInterceptor.ErrorResponse? {
+    override fun onErrorRequest(
+        session: EngineSession,
+        errorType: ErrorType,
+        uri: String?
+    ): RequestInterceptor.ErrorResponse? {
         return uri?.let {
             val data = ErrorPage.loadErrorPage(context, uri, errorType)
-            RequestInterceptor.ErrorResponse(data, uri)
+            RequestInterceptor.ErrorResponse.Content(data, uri)
         }
     }
 }

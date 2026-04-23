@@ -19,9 +19,6 @@ import androidx.core.view.isGone
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.rxkotlin.addTo
-import kotlinx.android.synthetic.main.fragment_browser.*
-import kotlinx.android.synthetic.main.fragment_browser.view.*
-import kotlinx.android.synthetic.main.hint_bar.*
 import mozilla.components.browser.session.Session
 import mozilla.components.concept.engine.EngineSession
 import mozilla.components.concept.engine.EngineView
@@ -105,22 +102,6 @@ class WebRenderFragment : EngineViewLifecycleFragment(), Session.Observer {
         session.register(observer = this, owner = this)
     }
 
-    override fun onFullScreenChanged(session: Session, enabled: Boolean) {
-        val window = (context as? Activity)?.window ?: return
-        val dontSleep = WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-
-        if (enabled) window.addFlags(dontSleep)
-        else window.clearFlags(dontSleep)
-
-        if (enabled &&
-                serviceLocator?.experimentsProvider?.shouldUseMp4VideoWorkaround() == true) {
-            engineView?.updateFullscreenScrollPosition()
-        }
-
-        val bannerLayout: View = window.findViewById(R.id.bannerLayout)
-        bannerLayout.isGone = enabled
-    }
-
     override fun onUrlChanged(session: Session, url: String) {
         if (url == URLs.APP_URL_HOME) serviceLocator?.screenController?.showNavigationOverlay(fragmentManager, true)
         youtubeBackHandler.onUrlChanged(url)
@@ -150,11 +131,14 @@ class WebRenderFragment : EngineViewLifecycleFragment(), Session.Observer {
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         val context = inflater.context
         val layout = inflater.inflate(R.layout.fragment_browser, container, false)
+        val browserFragmentRoot = layout.findViewById<View>(R.id.browserFragmentRoot)
+        val layoutEngineView = layout.findViewById<View>(R.id.engineView) as EngineView
+        val progressBarView = layout.findViewById<FirefoxProgressBar>(R.id.progressBar)
 
-        layout.browserFragmentRoot.addOnLayoutChangeListener { _, _, _, right, bottom, _, _, _, _ ->
+        browserFragmentRoot.addOnLayoutChangeListener { _, _, _, right, bottom, _, _, _, _ ->
             context.serviceLocator.cursorModel.screenBounds = PointF(right.toFloat(), bottom.toFloat())
         }
-        context.serviceLocator.cursorModel.webViewCouldScrollInDirectionProvider = layout.engineView::couldScrollInDirection
+        context.serviceLocator.cursorModel.webViewCouldScrollInDirectionProvider = layoutEngineView::couldScrollInDirection
 
         // Setup the banner
 
@@ -166,12 +150,12 @@ class WebRenderFragment : EngineViewLifecycleFragment(), Session.Observer {
             context?.serviceLocator?.screenController?.showNavigationOverlay(fragmentManager, false)
         }
 
-        layout.progressBar.initialize(this)
+        progressBarView.initialize(this)
 
         // We break encapsulation here: we should use the super.engineView reference but it's not init until
         // onViewCreated. However, overriding both onCreateView and onViewCreated in a single class
         // is confusing so I'd rather break encapsulation than confuse devs.
-        mediaSessionHolder?.videoVoiceCommandMediaSession?.onCreateEngineView(layout.engineView, session)
+        mediaSessionHolder?.videoVoiceCommandMediaSession?.onCreateEngineView(layoutEngineView, session)
 
         return layout
     }
@@ -195,6 +179,10 @@ class WebRenderFragment : EngineViewLifecycleFragment(), Session.Observer {
 
     override fun onStart() {
         super.onStart()
+        val view = rootView ?: return
+        val cursorView = view.findViewById<org.mozilla.tv.firefox.webrender.cursor.CursorView>(R.id.cursorView)
+        val progressBar = view.findViewById<FirefoxProgressBar>(R.id.progressBar)
+        val hintBarContainer = view.findViewById<View>(R.id.hintBarContainer)
 
         observeRequestFocus()
                 .addTo(startStopCompositeDisposable)

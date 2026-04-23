@@ -286,6 +286,7 @@ class VideoVoiceCommandMediaSession @UiThread constructor(
          * @return true for MediaSession to not handle the event but to continue system handling,
          * false for MediaSession to handle the event and stop system handling.
          */
+        @Suppress("DEPRECATION")
         override fun onMediaButtonEvent(mediaButtonEvent: Intent): Boolean {
             val key = mediaButtonEvent.getParcelableExtra<KeyEvent?>(Intent.EXTRA_KEY_EVENT)
 

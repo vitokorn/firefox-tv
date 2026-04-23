@@ -2,6 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+@file:Suppress("DEPRECATION")
+
 package org.mozilla.tv.firefox.navigationoverlay
 
 import android.content.Context
@@ -17,6 +19,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.ImageButton
 import android.widget.ScrollView
 import androidx.annotation.VisibleForTesting
 import androidx.annotation.VisibleForTesting.NONE
@@ -24,15 +27,13 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.NestedScrollView
 import androidx.fragment.app.Fragment
+import androidx.leanback.widget.ListRowView
 import androidx.transition.Fade
 import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.rxkotlin.addTo
-import kotlinx.android.synthetic.main.fragment_navigation_overlay_orig.*
-import kotlinx.android.synthetic.main.fragment_navigation_overlay_top_nav.*
-import kotlinx.android.synthetic.main.hint_bar.*
 import kotlinx.coroutines.Job
 import org.mozilla.tv.firefox.MainActivity
 import org.mozilla.tv.firefox.R
@@ -142,6 +143,12 @@ class NavigationOverlayFragment : Fragment() {
     private val musicChannel: DefaultChannel get() = channelReferenceContainer!!.musicChannel
 
     private var rootView: View? = null
+    private var exitButton: ImageButton? = null
+    private var fxaButton: ImageButton? = null
+    private var navUrlInput: InlineAutocompleteEditText? = null
+    private var channelsContainer: ViewGroup? = null
+    private var hintBarContainer: View? = null
+    private var settingsTileContainer: ListRowView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -183,6 +190,12 @@ class NavigationOverlayFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         rootView = view
+        exitButton = view.findViewById(R.id.exitButton)
+        fxaButton = view.findViewById(R.id.fxaButton)
+        navUrlInput = view.findViewById(R.id.navUrlInput)
+        channelsContainer = view.findViewById(R.id.channelsContainer)
+        hintBarContainer = view.findViewById(R.id.hintBarContainer)
+        settingsTileContainer = view.findViewById(R.id.settingsTileContainer)
 
         // TODO: Add back in once #1666 is ready to land.
         /*
@@ -204,11 +217,12 @@ class NavigationOverlayFragment : Fragment() {
 
         initSettingsChannel() // When pulling everything into channels, add this to the channel RV
 
-        exitButton.contentDescription = serviceLocator.experimentsProvider.getAAExitButtonExperiment(ExperimentConfig.AA_TEST)
-        fxaButton.contentDescription = getString(R.string.fxa_navigation_item_new, getString(R.string.app_name))
+        exitButton?.contentDescription = serviceLocator.experimentsProvider.getAAExitButtonExperiment(ExperimentConfig.AA_TEST)
+        fxaButton?.contentDescription = getString(R.string.fxa_navigation_item_new, getString(R.string.app_name))
 
         val tintDrawable: (Drawable?) -> Unit = { it?.setTint(ContextCompat.getColor(context!!, R.color.photonGrey10_a60p)) }
-        navUrlInput.compoundDrawablesRelative.forEach(tintDrawable)
+        navUrlInput?.compoundDrawablesRelative?.forEach(tintDrawable)
+        val channelsContainer = requireNotNull(channelsContainer)
         registerForContextMenu(channelsContainer)
         canShowUnpinToast = true
 
@@ -234,14 +248,14 @@ class NavigationOverlayFragment : Fragment() {
             .forEach { compositeDisposable.add(it) }
         observeTvGuideTiles()
             .forEach { compositeDisposable.add(it) }
-        HintBinder.bindHintsToView(hintViewModel, hintBarContainer, animate = false)
+        HintBinder.bindHintsToView(hintViewModel, requireNotNull(hintBarContainer), animate = false)
                 .forEach { compositeDisposable.add(it) }
         observeToolbarFocusability()
                 .addTo(compositeDisposable)
         toolbarUiController.observeToolbarState(rootView!!, fragmentManager!!)
             .forEach { compositeDisposable.add(it) }
 
-        fxaButton.isVisible = serviceLocator.experimentsProvider.shouldShowSendTab()
+        fxaButton?.isVisible = serviceLocator.experimentsProvider.shouldShowSendTab()
     }
 
     override fun onStop() {
@@ -269,6 +283,8 @@ class NavigationOverlayFragment : Fragment() {
 
     // TODO other toolbar state is set in the ToolbarUiController. Move this there to be consistent
     private fun observeAccountState(): Disposable {
+        val fxaButton = requireNotNull(fxaButton)
+
         fun setUiToNotAuthenticated() {
             fxaButton.setImageResource(R.drawable.ic_fxa_login)
             fxaButton.contentDescription =
@@ -349,6 +365,8 @@ class NavigationOverlayFragment : Fragment() {
     }
 
     private fun observeToolbarFocusability(): Disposable {
+        val navUrlInput = requireNotNull(navUrlInput)
+
         return navigationOverlayViewModel.leftmostActiveToolBarId
                 .subscribe { leftmostToolbarId ->
                     // Reset previous left most active toolbar button's nextFocusLeftID
@@ -439,7 +457,7 @@ class NavigationOverlayFragment : Fragment() {
     )
 
     private fun initSettingsChannel() {
-        settingsTileContainer.gridView.adapter = SettingsChannelAdapter(
+        requireNotNull(settingsTileContainer).gridView.adapter = SettingsChannelAdapter(
                 loadUrl = { urlStr ->
                     onNavigationEvent.invoke(NavigationEvent.LOAD_TILE, urlStr, null)
                 },
@@ -465,6 +483,12 @@ class NavigationOverlayFragment : Fragment() {
         super.onDestroyView()
 
         rootView = null
+        exitButton = null
+        fxaButton = null
+        navUrlInput = null
+        channelsContainer = null
+        hintBarContainer = null
+        settingsTileContainer = null
 
         // Since we start the async jobs in View.init and Android is inflating the view for us,
         // there's no good way to pass in the uiLifecycleJob. We could consider other solutions

@@ -76,7 +76,7 @@ class SessionRepo(
                 }
             }
 
-            fun <T> BehaviorSubject<T>.onNextIfNew(value: T) {
+            fun <T : Any> BehaviorSubject<T>.onNextIfNew(value: T) {
                 if (this.value != value) this.onNext(value)
             }
 
@@ -140,6 +140,7 @@ class SessionRepo(
     fun pushCurrentValue() = _state.onNext(_state.value!!) // TODO does this do anything? If not,
     // we can have state.distinctUntilChanged and get rid of postIfNew
 
+    @Suppress("DEPRECATION")
     fun loadURL(url: Uri) = session?.let { sessionManager.getEngineSession(it)?.loadUrl(url.toString()) }
 
     fun setTurboModeEnabled(enabled: Boolean) {
@@ -148,23 +149,21 @@ class SessionRepo(
 
     private val session: Session? get() = sessionManager.selectedSession
 
+    @Suppress("DEPRECATION")
     fun clearBrowsingData(engineViewCache: EngineViewCache) {
-        sessionManager.getEngineSession()?.clearData() // Only works for [SystemEngineView]
+        session?.let { sessionManager.getEngineSession(it) }?.clearData() // Only works for [SystemEngineView]
         sessionManager.removeAll()
         engineViewCache.doNotPersist()
     }
 
     /**
-     * Returns true if fullscreen was exited
+     * Returns true if fullscreen was exited.
+     * NOTE: fullScreenMode property removed in v56+. Fullscreen handling now
+     * lives in BrowserState and should be observed there if needed.
      */
     fun exitFullScreenIfPossible(): Boolean {
-        if (session?.fullScreenMode == true) {
-            // Changing the URL while full-screened can lead to unstable behavior
-            // (see #1224 and #1719), so we always attempt to exit full-screen
-            // before doing so
-            sessionManager.getEngineSession()?.exitFullScreenMode()
-            return true
-        }
+        // v56+: fullScreenMode no longer on Session object.
+        // Stubbed out; fullscreen exit should be handled via BrowserState observers.
         return false
     }
 }

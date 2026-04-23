@@ -10,11 +10,12 @@ import android.text.Spannable
 import android.text.SpannableStringBuilder
 import android.text.style.ImageSpan
 import android.view.View
+import android.widget.TextView
 import androidx.core.view.isVisible
 import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import io.reactivex.disposables.Disposable
-import kotlinx.android.synthetic.main.hint_bar.view.hintBarText
 import mozilla.components.support.ktx.android.util.dpToPx
+import org.mozilla.tv.firefox.R
 
 private const val IMAGE = "\$IMAGE"
 private const val IMAGE_SIZE_DP = 24
@@ -50,11 +51,11 @@ object HintBinder {
                         // returns false).
                         hintContainer.animate()
                                 .setListener(object : AnimatorListenerAdapter() {
-                                    override fun onAnimationStart(animation: Animator?) {
+                                    override fun onAnimationStart(animation: Animator) {
                                         if (shouldDisplay) hintContainer.isVisible = shouldDisplay
                                     }
 
-                                    override fun onAnimationEnd(animation: Animator?) {
+                                    override fun onAnimationEnd(animation: Animator) {
                                         if (!shouldDisplay) hintContainer.isVisible = shouldDisplay
                                     }
                                 })
@@ -68,6 +69,7 @@ object HintBinder {
         val hintDisposable = vm.hints.subscribe {
             val hint = it.firstOrNull() ?: return@subscribe // For the first version, only one hint is shown
             val resources = hintContainer.context.resources
+            val hintBarText: TextView = hintContainer.findViewById(R.id.hintBarText)
 
             val styledText = if (!hint.text.contains(IMAGE)) {
                 hint.text
@@ -83,8 +85,8 @@ object HintBinder {
                 spannableBuilder
             }
 
-            hintContainer.hintBarText.text = styledText
-            hintContainer.hintBarText.contentDescription = hint.contentDescription
+            hintBarText.text = styledText
+            hintBarText.contentDescription = hint.contentDescription
         }
 
         return listOf(displayedDisposable, hintDisposable)

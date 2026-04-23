@@ -2,18 +2,28 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+@file:Suppress("DEPRECATION")
+
 package org.mozilla.tv.firefox.onboarding
 
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.preference.PreferenceManager
+import android.widget.Button
+import android.widget.ImageView
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import kotlinx.android.synthetic.main.content_onboarding.*
 import org.mozilla.tv.firefox.R
 import org.mozilla.tv.firefox.ext.serviceLocator
 
 class OnboardingActivity : AppCompatActivity() {
+
+    private val enableTurboModeButton: Button by lazy { findViewById(R.id.enable_turbo_mode) }
+    private val disableTurboModeButton: Button by lazy { findViewById(R.id.disable_turbo_mode) }
+    private val onboardingMainText: TextView by lazy { findViewById(R.id.onboarding_main_text) }
+    private val turboModeTitle: TextView by lazy { findViewById(R.id.turbo_mode_title) }
+    private val turboImageView: ImageView by lazy { findViewById(R.id.turbo_image_view) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -21,12 +31,12 @@ class OnboardingActivity : AppCompatActivity() {
 
         setContent()
 
-        enable_turbo_mode.setOnClickListener { _ ->
+        enableTurboModeButton.setOnClickListener {
             setTurboMode(true)
             finish()
         }
 
-        disable_turbo_mode.setOnClickListener { _ ->
+        disableTurboModeButton.setOnClickListener {
             setTurboMode(false)
             setResult(Activity.RESULT_OK, Intent())
             finish()
@@ -38,12 +48,12 @@ class OnboardingActivity : AppCompatActivity() {
     private fun setContent() {
         val content = serviceLocator.experimentsProvider.getTurboModeOnboarding()
 
-        disable_turbo_mode.text = resources.getString(content.disableButtonTextId)
-        enable_turbo_mode.text = resources.getString(content.enableButtonTextId)
-        onboarding_main_text.text = resources.getString(content.descriptionId)
-        turbo_mode_title.text = resources.getString(content.titleId)
-        turbo_image_view.setImageResource(content.imageId)
-        turbo_image_view.contentDescription = resources.getString(content.imageContentDescriptionId)
+        disableTurboModeButton.text = resources.getString(content.disableButtonTextId)
+        enableTurboModeButton.text = resources.getString(content.enableButtonTextId)
+        onboardingMainText.text = resources.getString(content.descriptionId)
+        turboModeTitle.text = resources.getString(content.titleId)
+        turboImageView.setImageResource(content.imageId)
+        turboImageView.contentDescription = resources.getString(content.imageContentDescriptionId)
     }
 
     private fun setTurboMode(turboModeEnabled: Boolean) {

@@ -37,7 +37,7 @@ class ViewModelFactory(
     private val hintContentFactory = HintContentFactory(resources)
 
     @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel?> create(modelClass: Class<T>): T {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return when (modelClass) {
             ToolbarViewModel::class.java -> ToolbarViewModel(
                 sessionRepo = serviceLocator.sessionRepo,

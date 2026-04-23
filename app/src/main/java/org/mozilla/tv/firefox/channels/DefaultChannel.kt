@@ -8,8 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import io.reactivex.Observable
-import kotlinx.android.synthetic.main.default_channel.view.channelSubtitle
-import kotlinx.android.synthetic.main.default_channel.view.channelTitle
+import org.mozilla.tv.firefox.R
 
 /**
  * A data container representing a standard channel on the homescreen. This class references a Context and must
@@ -42,6 +41,6 @@ class DefaultChannel(
         adapter.submitList(tileData)
     }
 
-    private val titleView: TextView = channelContainer.channelTitle
-    private val subtitleView: TextView = channelContainer.channelSubtitle
+    private val titleView: TextView = channelContainer.findViewById(R.id.channelTitle)
+    private val subtitleView: TextView = channelContainer.findViewById(R.id.channelSubtitle)
 }

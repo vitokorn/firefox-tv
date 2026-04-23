@@ -28,7 +28,7 @@ data class FxaProfile(
 // This URL will be sent for any user that has no avatar set. It is improperly sized for
 // our ImageView, so we filter it out here and use an SVG instead
 private const val DEFAULT_FXA_AVATAR_URL = "https://firefoxusercontent.com/00000000000000000000000000000000"
-private const val DEFAULT_AVATAR_RESOURCE = R.drawable.ic_default_avatar
+private val DEFAULT_AVATAR_RESOURCE = R.drawable.ic_default_avatar
 
 fun Profile.toDomainObject(): FxaProfile {
     val avatar = this.avatar

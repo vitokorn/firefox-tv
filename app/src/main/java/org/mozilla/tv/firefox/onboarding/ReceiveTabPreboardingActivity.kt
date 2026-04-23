@@ -2,14 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+@file:Suppress("DEPRECATION")
+
 package org.mozilla.tv.firefox.onboarding
 
 import android.os.Bundle
 import android.preference.PreferenceManager
+import android.widget.Button
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import kotlinx.android.synthetic.main.receive_tab_preboarding.buttonNotNow
-import kotlinx.android.synthetic.main.receive_tab_preboarding.buttonSignIn
-import kotlinx.android.synthetic.main.receive_tab_preboarding.descriptionText
 import org.mozilla.tv.firefox.FirefoxApplication
 import org.mozilla.tv.firefox.MainActivity
 import org.mozilla.tv.firefox.R
@@ -24,6 +25,10 @@ class ReceiveTabPreboardingActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.receive_tab_preboarding)
+
+        val descriptionText = findViewById<TextView>(R.id.descriptionText)
+        val buttonSignIn = findViewById<Button>(R.id.buttonSignIn)
+        val buttonNotNow = findViewById<Button>(R.id.buttonNotNow)
 
         descriptionText.text = resources.getString(
             R.string.fxa_preboarding_instruction1,

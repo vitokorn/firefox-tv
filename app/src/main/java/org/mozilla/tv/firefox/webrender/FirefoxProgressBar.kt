@@ -9,9 +9,9 @@ import android.graphics.drawable.AnimationDrawable
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.View
+import android.widget.ImageView
 import android.widget.LinearLayout
-import kotlinx.android.synthetic.main.firefox_progress_bar.view.progressAnimation
-import kotlinx.android.synthetic.main.firefox_progress_bar.view.url
+import android.widget.TextView
 import mozilla.components.browser.session.Session
 import org.mozilla.tv.firefox.R
 
@@ -22,6 +22,12 @@ class FirefoxProgressBar @JvmOverloads constructor(
     attrs: AttributeSet? = null,
     defStyle: Int = 0
 ) : LinearLayout(context, attrs, defStyle), Session.Observer {
+
+    private val progressAnimationView: ImageView
+        get() = findViewById(R.id.progressAnimation)
+
+    private val urlView: TextView
+        get() = findViewById(R.id.url)
 
     fun initialize(webRenderFrag: WebRenderFragment) {
         webRenderFrag.session.register(this, webRenderFrag)
@@ -36,7 +42,7 @@ class FirefoxProgressBar @JvmOverloads constructor(
     }
 
     override fun onUrlChanged(session: Session, url: String) {
-        this.url.text = url
+        urlView.text = url
     }
 
     init {
@@ -47,7 +53,7 @@ class FirefoxProgressBar @JvmOverloads constructor(
 
     private fun showBar() {
         visibility = View.VISIBLE
-        (progressAnimation.background as AnimationDrawable).start()
+        (progressAnimationView.background as AnimationDrawable).start()
         animate().cancel()
         alpha = 1f
     }
@@ -56,7 +62,7 @@ class FirefoxProgressBar @JvmOverloads constructor(
         this.animate()
                 .withEndAction {
                     this.visibility = View.GONE
-                    (this.progressAnimation.background as AnimationDrawable).stop()
+                    (this.progressAnimationView.background as AnimationDrawable).stop()
                 }
                 .setDuration(HIDE_ANIMATION_DURATION_MILLIS)
                 .alpha(0f)

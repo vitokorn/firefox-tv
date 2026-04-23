@@ -22,7 +22,6 @@ import org.mozilla.tv.firefox.experiments.FretboardProvider
 import org.mozilla.tv.firefox.ext.getAccessibilityManager
 import org.mozilla.tv.firefox.ext.webRenderComponents
 import org.mozilla.tv.firefox.framework.FrameworkRepo
-import org.mozilla.tv.firefox.fxa.ADMIntegration
 import org.mozilla.tv.firefox.fxa.FxaLoginUseCase
 import org.mozilla.tv.firefox.fxa.FxaRepo
 import org.mozilla.tv.firefox.search.SearchEngineManagerFactory
@@ -79,9 +78,8 @@ open class ServiceLocator(val app: Application) {
     val screenshotStoreWrapper by lazy { PinnedTileImageUtilWrapper(app) }
     val formattedDomainWrapper by lazy { FormattedDomainWrapper(app) }
     val channelRepo by lazy { ChannelRepo(app, screenshotStoreWrapper, formattedDomainWrapper, pinnedTileRepo) }
-    val fxaRepo by lazy { FxaRepo(app, admIntegration = admIntegration) }
+    val fxaRepo by lazy { FxaRepo(app) }
     val fxaLoginUseCase by lazy { FxaLoginUseCase(fxaRepo, sessionRepo, screenController) }
-    val admIntegration by lazy { ADMIntegration(app) }
     val deviceInfo by lazy { DeviceInfo() }
 
     // These open vals are overridden in testing

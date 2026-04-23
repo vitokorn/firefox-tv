@@ -8,24 +8,17 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.ImageButton
+import android.widget.ImageView
+import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Observer
+import androidx.appcompat.widget.SwitchCompat
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.sentry.Sentry
-import kotlinx.android.synthetic.main.settings_screen_buttons.view.cancel_action
-import kotlinx.android.synthetic.main.settings_screen_buttons.view.confirm_action
-import kotlinx.android.synthetic.main.settings_screen_fxa_profile.view.avatarImage
-import kotlinx.android.synthetic.main.settings_screen_fxa_profile.view.backButton
-import kotlinx.android.synthetic.main.settings_screen_fxa_profile.view.buttonFirefoxTabs
-import kotlinx.android.synthetic.main.settings_screen_fxa_profile.view.buttonSignOut
-import kotlinx.android.synthetic.main.settings_screen_fxa_profile.view.signedInAs
-import kotlinx.android.synthetic.main.settings_screen_fxa_profile.view.userDisplayName
-import kotlinx.android.synthetic.main.settings_screen_switch.toggle
-import kotlinx.android.synthetic.main.settings_screen_switch.view.description
-import kotlinx.android.synthetic.main.settings_screen_switch.view.toggle
 import org.mozilla.tv.firefox.R
 import org.mozilla.tv.firefox.architecture.FirefoxViewModelProviders
 import org.mozilla.tv.firefox.channels.SettingsScreen
@@ -75,13 +68,15 @@ class SettingsFragment : Fragment() {
         settingsViewModel: SettingsViewModel
     ): View {
         val view = inflater.inflate(R.layout.settings_screen_switch, parentView, false)
+        val toggle = view.findViewById<SwitchCompat>(R.id.toggle)
+        val description = view.findViewById<TextView>(R.id.description)
         settingsViewModel.dataCollectionEnabled.observe(viewLifecycleOwner, Observer<Boolean> { state ->
-            view.toggle.isChecked = state ?: return@Observer
+            toggle.isChecked = state ?: return@Observer
         })
-        view.toggle.setOnClickListener {
+        toggle.setOnClickListener {
             settingsViewModel.setDataCollectionEnabled(toggle.isChecked)
         }
-        view.description.text = resources.getString(R.string.settings_telemetry_description,
+        description.text = resources.getString(R.string.settings_telemetry_description,
                 resources.getString(R.string.firefox_tv_brand_name))
         return view
     }
@@ -103,11 +98,13 @@ class SettingsFragment : Fragment() {
         })
 
         val view = inflater.inflate(R.layout.settings_screen_buttons, parentView, false)
-        view.confirm_action.setOnClickListener {
+        val confirmAction = view.findViewById<Button>(R.id.confirm_action)
+        val cancelAction = view.findViewById<Button>(R.id.cancel_action)
+        confirmAction.setOnClickListener {
             settingsViewModel.clearBrowsingData(serviceLocator.engineViewCache)
             serviceLocator.screenController.handleBack(fragmentManager!!)
         }
-        view.cancel_action.setOnClickListener {
+        cancelAction.setOnClickListener {
             serviceLocator.screenController.handleBack(fragmentManager!!)
         }
         return view
@@ -118,6 +115,7 @@ class SettingsFragment : Fragment() {
         parentView: ViewGroup?
     ): View {
         val view = inflater.inflate(R.layout.settings_screen_fxa_profile, parentView, false)
+        val buttonFirefoxTabs = view.findViewById<Button>(R.id.buttonFirefoxTabs)
 
         setupFxaText(view)
         setupFxaProfileClickListeners(view)
@@ -125,7 +123,7 @@ class SettingsFragment : Fragment() {
             .forEach { compositeDisposable.add(it) }
 
         val fxaRepo = serviceLocator.fxaRepo
-        view.buttonFirefoxTabs.setOnClickListener {
+        buttonFirefoxTabs.setOnClickListener {
             fxaRepo.showFxaOnboardingScreen(context!!)
         }
 
@@ -134,51 +132,59 @@ class SettingsFragment : Fragment() {
 
     private fun setupFxaText(view: View) {
         val appName = resources.getString(R.string.app_name)
-        view.buttonFirefoxTabs.text = resources.getString(R.string.fxa_settings_primary_button, appName)
+        val buttonFirefoxTabs = view.findViewById<Button>(R.id.buttonFirefoxTabs)
+        val signedInAs = view.findViewById<TextView>(R.id.signedInAs)
+        buttonFirefoxTabs.text = resources.getString(R.string.fxa_settings_primary_button, appName)
         // Username is positioned and styled differently, so it is left blank here
         // and set on another TextView
-        view.signedInAs.text = resources.getString(R.string.fxa_settings_body, "")
+        signedInAs.text = resources.getString(R.string.fxa_settings_body, "")
     }
 
     private fun setupFxaProfileClickListeners(view: View) {
         val screenController = serviceLocator.screenController
         val fxaRepo = serviceLocator.fxaRepo
         val telemetryIntegration = TelemetryIntegration.INSTANCE
+        val buttonFirefoxTabs = view.findViewById<Button>(R.id.buttonFirefoxTabs)
+        val buttonSignOut = view.findViewById<Button>(R.id.buttonSignOut)
+        val backButton = view.findViewById<ImageButton>(R.id.backButton)
 
-        view.buttonFirefoxTabs.setOnClickListener {
+        buttonFirefoxTabs.setOnClickListener {
             // TODO show send tab tutorial
             telemetryIntegration.fxaProfileShowOnboardingButtonClickEvent()
         }
-        view.buttonSignOut.setOnClickListener {
+        buttonSignOut.setOnClickListener {
             fxaRepo.logout()
             screenController.handleBack(fragmentManager!!)
             telemetryIntegration.fxaProfileSignOutButtonClickEvent()
         }
-        view.backButton.setOnClickListener {
+        backButton.setOnClickListener {
             screenController.handleBack(fragmentManager!!)
         }
     }
 
     private fun observeFxaProfile(view: View): List<Disposable> {
         val accountState = context!!.serviceLocator.fxaRepo.accountState
+        val userDisplayName = view.findViewById<TextView>(R.id.userDisplayName)
+        val signedInAs = view.findViewById<TextView>(R.id.signedInAs)
+        val avatarImage = view.findViewById<ImageView>(R.id.avatarImage)
 
         return listOf(
             accountState
                 .ofType(FxaRepo.AccountState.AuthenticatedWithProfile::class.java)
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe {
-                    view.userDisplayName.text = it.profile.displayName
+                    userDisplayName.text = it.profile.displayName
                     it.profile.avatarSetStrategy
-                        .setTransformation(RoundCornerTransformation(view.avatarImage.width.toFloat()))
-                        .invoke(view.avatarImage)
+                        .setTransformation(RoundCornerTransformation(avatarImage.width.toFloat()))
+                        .invoke(avatarImage)
                 },
             accountState
                 .filter { it::class.java != FxaRepo.AccountState.AuthenticatedWithProfile::class.java }
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe {
-                    view.userDisplayName.text = ""
-                    view.signedInAs.text = resources.getString(R.string.fxa_settings_body_no_display_name)
-                    PicassoWrapper.client.load(R.drawable.ic_default_avatar).into(view.avatarImage)
+                    userDisplayName.text = ""
+                    signedInAs.text = resources.getString(R.string.fxa_settings_body_no_display_name)
+                    PicassoWrapper.client.load(R.drawable.ic_default_avatar).into(avatarImage)
                 }
         )
     }

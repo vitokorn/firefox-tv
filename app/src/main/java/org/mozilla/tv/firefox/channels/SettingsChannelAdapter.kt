@@ -7,8 +7,10 @@ package org.mozilla.tv.firefox.channels
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
+import android.widget.TextView
+import androidx.cardview.widget.CardView
 import androidx.recyclerview.widget.RecyclerView
-import kotlinx.android.synthetic.main.settings_tile.view.*
 import org.mozilla.tv.firefox.R
 import org.mozilla.tv.firefox.telemetry.TelemetryIntegration
 import org.mozilla.tv.firefox.utils.URLs
@@ -52,7 +54,7 @@ class SettingsChannelAdapter(
         val itemData = settingsItems[position]
         iconView.setImageResource(itemData.imgRes)
         titleView.setText(itemData.titleRes)
-        itemView.settings_cardview.setOnClickListener {
+        cardView.setOnClickListener {
             when (val type = itemData.type) {
                 SettingsScreen.DATA_COLLECTION -> showSettings(type as SettingsScreen)
                 SettingsScreen.CLEAR_COOKIES -> showSettings(type as SettingsScreen)
@@ -67,8 +69,9 @@ class SettingsChannelAdapter(
 }
 
 class SettingsTileHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-    val iconView = itemView.settings_icon
-    val titleView = itemView.settings_title
+    val cardView: CardView = itemView.findViewById(R.id.settings_cardview)
+    val iconView: ImageView = itemView.findViewById(R.id.settings_icon)
+    val titleView: TextView = itemView.findViewById(R.id.settings_title)
 }
 
 // We differentiate between Settings tiles that lead to other Settings screens, or are just buttons

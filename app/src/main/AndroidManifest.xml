@@ -53,6 +53,7 @@
         </provider>
 
         <activity android:name=".MainActivity"
+            android:exported="true"
             android:launchMode="singleTask"
             android:configChanges="keyboard|keyboardHidden|mcc|mnc|orientation|screenSize|locale|layoutDirection|smallestScreenSize|screenLayout"
             android:windowSoftInputMode="adjustResize|stateAlwaysHidden"
@@ -127,6 +128,7 @@
             android:exported="false"/>
         <receiver
             android:name=".fxa.ADMReceiver"
+            android:exported="true"
             android:permission="com.amazon.device.messaging.permission.SEND">
             <!-- To interact with ADM, your app must listen for the following intents. -->
             <intent-filter>

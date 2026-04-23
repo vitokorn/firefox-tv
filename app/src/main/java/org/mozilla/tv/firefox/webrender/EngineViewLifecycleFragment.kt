@@ -59,9 +59,11 @@ abstract class EngineViewLifecycleFragment : LocaleAwareFragment() {
         // lifecycle and the EngineView instance (to avoid accidentally having multiple sessionFeature
         // instances)
         engineView = (view.findViewById<View>(R.id.engineView) as EngineView).apply {
+            val components = requireWebRenderComponents
             sessionFeature = SessionFeature(
-                    requireWebRenderComponents.sessionManager,
-                    requireWebRenderComponents.sessionUseCases,
+                    components.store,
+                    components.sessionUseCases.goBack,
+                    components.engineSessionUseCases,
                     this)
         }
     }
@@ -117,7 +119,7 @@ abstract class EngineViewLifecycleFragment : LocaleAwareFragment() {
         }
         // We create and destroy a new WebView here to force the internal state of WebView to know
         // about the new language. See focus-android issue #666.
-        val unneeded = WebView(getContext())
+        val unneeded = WebView(requireContext())
         unneeded.destroy()
     }
 }

@@ -10,6 +10,7 @@ import android.graphics.BitmapFactory
 import androidx.annotation.AnyThread
 import androidx.annotation.VisibleForTesting
 import androidx.annotation.WorkerThread
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -35,6 +36,7 @@ import java.util.UUID
  * - JPEG is ~130 KiB with noticeable artifacts up close
  * - PNG is ~1.6MiB with no artifacts (it is lossless)
  */
+@Suppress("DEPRECATION")
 private val COMPRESSION_FORMAT = Bitmap.CompressFormat.WEBP
 
 /**
@@ -96,6 +98,7 @@ object PinnedTileScreenshotStore {
 
     /** @param uuid a unique identifier for this screenshot. */
     @AnyThread
+    @OptIn(DelicateCoroutinesApi::class)
     fun saveAsync(context: Context, uuid: UUID, screenshot: Bitmap) = GlobalScope.launch {
         if (!isScreenshotAcceptableAsHomeTile(screenshot)) {
             // We won't save this image, meaning we'll return null when we try to read it.
@@ -116,6 +119,7 @@ object PinnedTileScreenshotStore {
 
     /** @param a unique identifier for this screenshot. */
     @AnyThread
+    @OptIn(DelicateCoroutinesApi::class)
     fun removeAsync(context: Context, uuid: UUID) = GlobalScope.launch {
         getMutex(uuid).withLock {
             getFileForUUID(context, uuid).delete()

@@ -21,6 +21,10 @@ android {
     compileSdkVersion 34
     buildToolsVersion '34.0.0'
 
+    buildFeatures {
+        buildConfig true
+    }
+
     defaultConfig {
         applicationId "org.mozilla.tv.firefox"
         minSdkVersion 22
@@ -148,6 +152,7 @@ dependencies {
     implementation "androidx.constraintlayout:constraintlayout:1.1.3"
     implementation "androidx.work:work-runtime-ktx:$androidx_work_version"
     implementation 'com.squareup.picasso:picasso:2.71828'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 
     implementation ("com.google.code.findbugs:annotations:3.0.1") {
         // We really only need the SuppressFBWarnings annotation, everything else can be ignored.
@@ -161,6 +166,7 @@ dependencies {
     implementation "org.mozilla.components:lib-fetch-okhttp:$moz_components_version"
     implementation "org.mozilla.components:lib-fetch-httpurlconnection:$moz_components_version"
     implementation "org.mozilla.components:browser-session:$moz_components_version"
+    implementation "org.mozilla.components:browser-state:$moz_components_version"
     implementation "org.mozilla.components:browser-search:$moz_components_version"
     implementation "org.mozilla.components:browser-domains:$moz_components_version"
     implementation "org.mozilla.components:concept-engine:$moz_components_version"
@@ -169,7 +175,7 @@ dependencies {
     implementation "org.mozilla.components:ui-fonts:$moz_components_version"
     implementation "org.mozilla.components:feature-session:$moz_components_version"
     implementation "org.mozilla.components:feature-push:$moz_components_version"
-    implementation "org.mozilla.components:feature-sendtab:$moz_components_version"
+    // feature-sendtab removed in version 56+; send tab functionality is now in service-firefox-accounts
     implementation "org.mozilla.components:ui-icons:$moz_components_version"
     implementation "org.mozilla.components:service-fretboard:$moz_components_version"
     implementation "org.mozilla.components:service-firefox-accounts:$moz_components_version"
@@ -204,7 +210,7 @@ dependencies {
     testImplementation "io.mockk:mockk:1.9.1"
 
     testImplementation "androidx.test:core:$test_core"
-    testImplementation "androidx.work:work-testing:2.0.1" // Required by Glean testing
+    testImplementation "androidx.work:work-testing:$androidx_work_version" // Required by Glean testing
     androidTestImplementation "androidx.test:core:$test_core"
 
     androidTestImplementation "androidx.test.uiautomator:uiautomator:$uiautomator_version"

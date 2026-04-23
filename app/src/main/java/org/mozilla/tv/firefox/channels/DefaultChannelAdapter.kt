@@ -12,6 +12,7 @@ import android.graphics.drawable.Drawable
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.DiffUtil
@@ -19,11 +20,7 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import io.reactivex.Observable
 import io.reactivex.subjects.Subject
-import kotlinx.android.synthetic.main.dialog_channel_tiles.cancelButton
-import kotlinx.android.synthetic.main.dialog_channel_tiles.removeTileButton
-import kotlinx.android.synthetic.main.dialog_channel_tiles.titleText
 import io.reactivex.subjects.PublishSubject
-import kotlinx.android.synthetic.main.home_tile.view.channel_cardview
 import org.mozilla.tv.firefox.R
 
 val DIFF_CALLBACK = object : DiffUtil.ItemCallback<ChannelTile>() {
@@ -93,8 +90,9 @@ class DefaultChannelAdapter(
                     focusRingDrawable = null
                     animation = AnimatorInflater.loadStateListAnimator(context, R.animator.channel_item_animator_not_focused)
                 }
-                itemView.channel_cardview.stateListAnimator = animation
-                itemView.channel_cardview.foreground = focusRingDrawable
+                val channelCardView: View = itemView.findViewById(R.id.channel_cardview)
+                channelCardView.stateListAnimator = animation
+                channelCardView.foreground = focusRingDrawable
                 _focusChangeObservable.onNext(position to hasFocus)
                 channelConfig.onFocusTelemetry?.invoke(tile, hasFocus)
             }
@@ -107,14 +105,17 @@ class DefaultChannelAdapter(
             val dialog = Dialog(context, R.style.DialogStyle)
             dialog.setContentView(R.layout.dialog_channel_tiles)
             dialog.window?.setDimAmount(0.85f)
+            val titleText: TextView = dialog.findViewById(R.id.titleText)
+            val removeTileButton: Button = dialog.findViewById(R.id.removeTileButton)
+            val cancelButton: Button = dialog.findViewById(R.id.cancelButton)
 
-            dialog.titleText.text = tile.generateRemoveTileTitleStr(context)
-            dialog.removeTileButton.setOnClickListener {
+            titleText.text = tile.generateRemoveTileTitleStr(context)
+            removeTileButton.setOnClickListener {
                 _removeEvents.onNext(tile)
                 dialog.dismiss()
             }
 
-            dialog.cancelButton.setOnClickListener {
+            cancelButton.setOnClickListener {
                 dialog.dismiss()
             }
 

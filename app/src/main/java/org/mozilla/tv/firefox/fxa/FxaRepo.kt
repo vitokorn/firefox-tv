@@ -2,20 +2,23 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+@file:Suppress("DEPRECATION")
+
 package org.mozilla.tv.firefox.fxa
 
 import android.annotation.SuppressLint
 import android.app.Dialog
 import android.content.Context
 import android.preference.PreferenceManager
+import android.widget.Button
+import android.widget.TextView
 import androidx.annotation.VisibleForTesting
 import androidx.annotation.VisibleForTesting.NONE
 import io.reactivex.Observable
 import io.reactivex.subjects.BehaviorSubject
-import kotlinx.android.synthetic.main.tabs_onboarding.descriptionText
-import kotlinx.android.synthetic.main.tabs_onboarding.tabs_onboarding_button
 import kotlinx.coroutines.Deferred
-import mozilla.appservices.fxaclient.Config
+import mozilla.components.service.fxa.ServerConfig
+import mozilla.components.service.fxa.Server
 import mozilla.components.concept.sync.AccountObserver
 import mozilla.components.concept.sync.AuthType
 import mozilla.components.concept.sync.DeviceCapability
@@ -55,7 +58,6 @@ private val APPLICATION_SCOPES = setOf(
 class FxaRepo(
     val context: Context,
     val accountManager: FxaAccountManager = newInstanceDefaultAccountManager(context),
-    val admIntegration: ADMIntegration, // Consider moving to an FxaReceiveTabsUseCase or rm this comment.
     private val telemetryIntegration: TelemetryIntegration = TelemetryIntegration.INSTANCE,
     private val sentryIntegration: SentryIntegration = SentryIntegration
 ) {
@@ -87,19 +89,13 @@ class FxaRepo(
     private val _accountState: BehaviorSubject<AccountState> = BehaviorSubject.createDefault(AccountState.Initial)
     val accountState: Observable<AccountState> = _accountState.hide()
 
-    val receivedTabs: Observable<Consumable<FxaReceivedTab>> = admIntegration.receivedTabsRaw
-        .filterMapToDomainObject()
-        .map { Consumable.from(it) }
-        .replay(1)
-        .autoConnect(0)
+    val receivedTabs: Observable<Consumable<FxaReceivedTab>> = Observable.empty()
 
     init {
         accountManager.register(accountObserver)
 
         @Suppress("DeferredResultUnused") // No value is returned & we don't need to wait for this to complete.
         accountManager.initAsync() // If user is already logged in, the appropriate observers will be triggered.
-
-        admIntegration.createSendTabFeature(accountManager)
 
         setupTelemetry()
     }
@@ -120,13 +116,15 @@ class FxaRepo(
     fun showFxaOnboardingScreen(context: Context) {
         val dialog = Dialog(context, R.style.OverlayDialogStyle)
         dialog.setContentView(R.layout.tabs_onboarding)
+        val descriptionText: TextView = dialog.findViewById(R.id.descriptionText)
+        val tabsOnboardingButton: Button = dialog.findViewById(R.id.tabs_onboarding_button)
 
         val resources = context.resources
-        dialog.descriptionText.text =
+        descriptionText.text =
             resources.getString(R.string.fxa_onboarding_instruction,
                 resources.getString(R.string.app_name))
 
-        dialog.tabs_onboarding_button.setOnClickListener {
+        tabsOnboardingButton.setOnClickListener {
 
             dialog.dismiss()
         }
@@ -150,9 +148,7 @@ class FxaRepo(
      * See: https://github.com/mozilla/application-services/issues/1418
      */
     fun pollAccountState() {
-        @Suppress("DeferredResultUnused") // We don't need to do anything when
-        // this finishes
-        accountManager.authenticatedAccount()?.deviceConstellation()?.pollForEventsAsync()
+        // pollForEventsAsync() removed in v56+. FxA now handles push events internally.
     }
 
     @SuppressLint("CheckResult") // This survives for the duration of the app
@@ -181,10 +177,6 @@ class FxaRepo(
     inner class FirefoxAccountObserver : AccountObserver {
         override fun onAuthenticated(account: OAuthAccount, authType: AuthType) {
             _accountState.onNext(AuthenticatedNoProfile)
-
-            // Push service is only needed when logged in (this saves resources)
-            admIntegration.initPushFeature()
-
             telemetryIntegration.fxaLoggedInEvent()
         }
 
@@ -194,10 +186,6 @@ class FxaRepo(
 
         override fun onLoggedOut() {
             _accountState.onNext(NotAuthenticated)
-
-            // Push service is not needed after logging out (this saves resources)
-            admIntegration.shutdownPushFeature()
-
             telemetryIntegration.fxaLoggedOutEvent()
         }
 
@@ -217,7 +205,7 @@ class FxaRepo(
             val deviceModel = context.serviceLocator.deviceInfo.getDeviceModel()
             return FxaAccountManager(
                 context,
-                Config.release(CLIENT_ID, REDIRECT_URI),
+                ServerConfig(Server.RELEASE, CLIENT_ID, REDIRECT_URI),
                 applicationScopes = APPLICATION_SCOPES,
                 deviceConfig = DeviceConfig(
                     name = "Firefox on $deviceModel",

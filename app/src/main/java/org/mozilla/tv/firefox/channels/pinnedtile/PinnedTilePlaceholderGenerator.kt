@@ -54,7 +54,7 @@ class PinnedTilePlaceholderGenerator {
          */
         @JvmStatic
         fun getRepresentativeCharacter(url: String?): Char {
-            val firstChar = getRepresentativeSnippet(url)?.find { it.isLetterOrDigit() }?.toUpperCase()
+            val firstChar = getRepresentativeSnippet(url)?.find { it.isLetterOrDigit() }?.uppercaseChar()
             return (firstChar ?: DEFAULT_ICON_CHAR)
         }
 

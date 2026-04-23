@@ -10,18 +10,10 @@ import android.view.ViewTreeObserver
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.PopupWindow
+import android.widget.TextView
 import androidx.core.view.forEach
 import androidx.fragment.app.FragmentManager
 import io.reactivex.disposables.Disposable
-import kotlinx.android.synthetic.main.fragment_navigation_overlay.view.navUrlInput
-import kotlinx.android.synthetic.main.fragment_navigation_overlay.view.topNavContainer
-import kotlinx.android.synthetic.main.fragment_navigation_overlay_top_nav.view.desktopModeButton
-import kotlinx.android.synthetic.main.fragment_navigation_overlay_top_nav.view.navButtonBack
-import kotlinx.android.synthetic.main.fragment_navigation_overlay_top_nav.view.navButtonForward
-import kotlinx.android.synthetic.main.fragment_navigation_overlay_top_nav.view.navButtonReload
-import kotlinx.android.synthetic.main.fragment_navigation_overlay_top_nav.view.pinButton
-import kotlinx.android.synthetic.main.fragment_navigation_overlay_top_nav.view.turboButton
-import kotlinx.android.synthetic.main.tooltip.view.tooltip
 import mozilla.components.browser.domains.autocomplete.ShippedDomainsProvider
 import mozilla.components.support.ktx.android.view.hideKeyboard
 import org.mozilla.tv.firefox.R
@@ -29,6 +21,7 @@ import org.mozilla.tv.firefox.experiments.ExperimentsProvider
 import org.mozilla.tv.firefox.ext.serviceLocator
 import org.mozilla.tv.firefox.utils.URLs
 import org.mozilla.tv.firefox.utils.ViewUtils
+import org.mozilla.tv.firefox.widget.CheckableImageButton
 import org.mozilla.tv.firefox.widget.IgnoreFocusMovementMethod
 import org.mozilla.tv.firefox.widget.InlineAutocompleteEditText
 
@@ -53,8 +46,10 @@ class ToolbarUiController(
 
     fun onCreateView(layout: View) {
         val toolbarClickListener = ToolbarOnClickListener()
-        layout.topNavContainer.forEach {
-            it.nextFocusDownId = layout.navUrlInput.id
+        val topNavContainer = layout.findViewById<LinearLayout>(R.id.topNavContainer)
+        val navUrlInput = layout.findViewById<InlineAutocompleteEditText>(R.id.navUrlInput)
+        topNavContainer.forEach {
+            it.nextFocusDownId = navUrlInput.id
             if (it.isFocusable) it.setOnClickListener(toolbarClickListener)
 
             it.setOnFocusChangeListener { _, hasFocus ->
@@ -67,11 +62,11 @@ class ToolbarUiController(
         tooltipView = layoutInflater.inflate(R.layout.tooltip, null)
         tooltip = PopupWindow(tooltipView, WRAP_CONTENT, WRAP_CONTENT, false)
 
-        setupUrlInput(layout)
+        setupUrlInput(navUrlInput)
     }
 
     private fun showTooltip(navBarButton: View) {
-        tooltip.contentView.tooltip.text = navBarButton.contentDescription
+        tooltip.contentView.findViewById<TextView>(R.id.tooltip).text = navBarButton.contentDescription
         tooltip.isClippingEnabled = false
 
         // The measurement of the popup happens in onGlobalLayout. We need to update the position of the
@@ -93,7 +88,7 @@ class ToolbarUiController(
         tooltip.showAsDropDown(navBarButton)
     }
 
-    private fun setupUrlInput(layout: View) = with(layout.navUrlInput) {
+    private fun setupUrlInput(navUrlInput: InlineAutocompleteEditText) = with(navUrlInput) {
         setOnCommitListener {
             val userInput = text.toString()
             if (userInput == URLs.APP_URL_HOME) {
@@ -139,26 +134,33 @@ class ToolbarUiController(
         val context = layout.context
         val serviceLocator = context.serviceLocator
         val turboButtonContent = experimentsProvider.getTurboModeToolbar()
+        val navButtonBack = layout.findViewById<ImageButton>(R.id.navButtonBack)
+        val navButtonForward = layout.findViewById<ImageButton>(R.id.navButtonForward)
+        val navButtonReload = layout.findViewById<ImageButton>(R.id.navButtonReload)
+        val pinButton = layout.findViewById<CheckableImageButton>(R.id.pinButton)
+        val desktopModeButton = layout.findViewById<CheckableImageButton>(R.id.desktopModeButton)
+        val turboButton = layout.findViewById<CheckableImageButton>(R.id.turboButton)
+        val navUrlInput = layout.findViewById<InlineAutocompleteEditText>(R.id.navUrlInput)
 
-        layout.turboButton.setImageResource(turboButtonContent.imageId)
+        turboButton.setImageResource(turboButtonContent.imageId)
 
         val stateDisposable = toolbarViewModel.state.subscribe {
             if (it == null) return@subscribe
-            updateOverlayButtonState(it.backEnabled, layout.navButtonBack)
-            updateOverlayButtonState(it.forwardEnabled, layout.navButtonForward)
-            updateOverlayButtonState(it.pinEnabled, layout.pinButton)
-            updateOverlayButtonState(it.refreshEnabled, layout.navButtonReload)
-            updateOverlayButtonState(it.desktopModeEnabled, layout.desktopModeButton)
+            updateOverlayButtonState(it.backEnabled, navButtonBack)
+            updateOverlayButtonState(it.forwardEnabled, navButtonForward)
+            updateOverlayButtonState(it.pinEnabled, pinButton)
+            updateOverlayButtonState(it.refreshEnabled, navButtonReload)
+            updateOverlayButtonState(it.desktopModeEnabled, desktopModeButton)
 
-            layout.pinButton.isChecked = it.pinChecked
-            layout.pinButton.contentDescription =
+            pinButton.isChecked = it.pinChecked
+            pinButton.contentDescription =
                 if (it.pinChecked)
                     context.resources.getString(R.string.unpin_label)
                 else
                     context.resources.getString(R.string.pin_label)
 
-            layout.desktopModeButton.isChecked = it.desktopModeChecked
-            layout.turboButton.isChecked = it.turboChecked
+            desktopModeButton.isChecked = it.desktopModeChecked
+            turboButton.isChecked = it.turboChecked
 
             val resources = layout.context.resources
             val turboText = if (it.turboChecked) {
@@ -167,8 +169,10 @@ class ToolbarUiController(
                 resources.getString(turboButtonContent.disabledTextId)
             }
 
-            layout.turboButton.contentDescription = turboText
-            if (layout.turboButton.hasFocus()) tooltipView.tooltip.text = turboText
+            turboButton.contentDescription = turboText
+            if (turboButton.hasFocus()) {
+                tooltipView.findViewById<TextView>(R.id.tooltip).text = turboText
+            }
 
             if (!hasUserChangedURLSinceEditTextFocused) {
                 // The url can get updated in the background, e.g. if a loading page is redirected. We
@@ -183,7 +187,7 @@ class ToolbarUiController(
                 // we can't determine if the keyboard is up or not and focus isn't a good indicator because
                 // we can focus the EditText without opening the soft keyboard and the user won't even know
                 // these are inaccurate!
-                layout.navUrlInput.setText(it.urlBarText)
+                navUrlInput.setText(it.urlBarText)
             }
         }
 
