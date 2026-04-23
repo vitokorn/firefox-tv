@@ -58,7 +58,14 @@ class SettingsChannelAdapter(
             when (val type = itemData.type) {
                 SettingsScreen.DATA_COLLECTION -> showSettings(type as SettingsScreen)
                 SettingsScreen.CLEAR_COOKIES -> showSettings(type as SettingsScreen)
-                SettingsButton.ABOUT -> loadUrl(URLs.URL_ABOUT)
+                SettingsButton.ABOUT -> {
+                    // Load about page by generating content to a temp file
+                    val context = cardView.context
+                    val content = org.mozilla.tv.firefox.webrender.LocalizedContent.generateAboutPage(context)
+                    val tempFile = java.io.File.createTempFile("about", ".html", context.cacheDir)
+                    tempFile.writeText(content)
+                    loadUrl("file://${tempFile.absolutePath}")
+                }
                 SettingsButton.PRIVACY_POLICY -> loadUrl(URLs.PRIVACY_NOTICE_URL)
             }
             TelemetryIntegration.INSTANCE.settingsTileClickEvent(itemData.type)

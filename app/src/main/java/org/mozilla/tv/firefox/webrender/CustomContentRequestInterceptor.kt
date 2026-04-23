@@ -19,11 +19,13 @@ import org.mozilla.tv.firefox.utils.BuildConstants.getInterceptionResponseConten
 import org.mozilla.tv.firefox.utils.URLs
 
 /**
- * [RequestInterceptor] implementation to inject custom content for firefox:* pages.
+ * [RequestInterceptor] implementation to inject custom content for about:* pages.
  */
 class CustomContentRequestInterceptor(
     private val context: Context
 ) : RequestInterceptor {
+
+    override fun interceptsAppInitiatedRequests() = true
 
     private var currentPageURL = ""
 

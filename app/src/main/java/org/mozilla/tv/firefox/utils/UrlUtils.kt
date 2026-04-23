@@ -103,7 +103,8 @@ object UrlUtils {
         return scheme != null && (scheme.startsWith("http") ||
                 scheme.startsWith("https") ||
                 scheme.startsWith("file") ||
-                scheme.startsWith("data"))
+                scheme.startsWith("data") ||
+                scheme.startsWith("about"))
     }
 
     @JvmStatic

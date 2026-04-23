@@ -140,15 +140,8 @@ class WebRenderFragment : EngineViewLifecycleFragment(), Session.Observer {
         }
         context.serviceLocator.cursorModel.webViewCouldScrollInDirectionProvider = layoutEngineView::couldScrollInDirection
 
-        // Setup the banner
-
-        val bannerLayout: View = layout.findViewById(R.id.bannerLayout)
-
-        val moreInfoButton: Button = bannerLayout.findViewById(R.id.bannerMoreInfoButton)
-        moreInfoButton.setOnClickListener {
-            (activity as MainActivity).onNonTextInputUrlEntered(SupportUtils.getSumoURLForTopic(this.context, "amazon-end-support"))
-            context?.serviceLocator?.screenController?.showNavigationOverlay(fragmentManager, false)
-        }
+        // Deprecation banner hidden - support restored.
+        layout.findViewById<View>(R.id.bannerLayout).visibility = View.GONE
 
         progressBarView.initialize(this)
 

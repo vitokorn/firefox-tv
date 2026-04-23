@@ -8,7 +8,7 @@ package org.mozilla.tv.firefox.utils
  * Provides URL constants
  */
 object URLs {
-    private const val APP_URL_PREFIX = "firefox:"
+    private const val APP_URL_PREFIX = "about:"
     const val APP_URL_HOME = "${APP_URL_PREFIX}home"
 
     const val FIREFOX_ACCOUNTS = "https://accounts.firefox.com"

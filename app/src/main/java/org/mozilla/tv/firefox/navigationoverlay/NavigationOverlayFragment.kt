@@ -177,13 +177,8 @@ class NavigationOverlayFragment : Fragment() {
             onCreateView(view)
         }
 
-        val bannerLayout: View = view.findViewById(R.id.bannerLayout)
-
-        val bannerMoreInfoButton: Button = bannerLayout.findViewById(R.id.bannerMoreInfoButton)
-        bannerMoreInfoButton.setOnClickListener {
-            (activity as MainActivity).onNonTextInputUrlEntered(SupportUtils.getSumoURLForTopic(this.context, "amazon-end-support"))
-            context?.serviceLocator?.screenController?.showNavigationOverlay(fragmentManager, false)
-        }
+        // Deprecation banner hidden - support restored.
+        view.findViewById<View>(R.id.bannerLayout).visibility = View.GONE
 
         return view
     }

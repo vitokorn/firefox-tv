@@ -55,7 +55,7 @@ class WebRenderComponents(applicationContext: Context, systemUserAgent: String) 
 
     val store by lazy { BrowserStore() }
 
-    val sessionManager by lazy { SessionManager(engine) }
+    val sessionManager by lazy { SessionManager(engine, store) }
 
     val sessionUseCases by lazy { SessionUseCases(sessionManager) }
 
