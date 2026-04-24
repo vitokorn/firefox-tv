@@ -7,7 +7,7 @@ package org.mozilla.tv.firefox.webrender
 import android.content.Context
 import mozilla.components.browser.engine.system.SystemEngine
 import mozilla.components.browser.state.store.BrowserStore
-import mozilla.components.browser.state.middleware.EngineMiddleware
+import mozilla.components.browser.state.engine.EngineMiddleware
 import mozilla.components.concept.engine.DefaultSettings
 import mozilla.components.concept.engine.Engine
 import mozilla.components.feature.session.SessionUseCases

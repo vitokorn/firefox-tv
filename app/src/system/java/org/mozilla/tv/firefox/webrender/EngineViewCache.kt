@@ -101,6 +101,13 @@ class EngineViewCache(private val sessionRepo: SessionRepo) : LifecycleObserver 
         cachedView = null
     }
 
+    /**
+     * No-op on system flavor. Gecko flavor uses this to wire up GeckoSession delegates.
+     */
+    fun setupSessionDelegateIfNeeded() {
+        // System WebView handles progress/history via EngineSession observers.
+    }
+
     fun doNotPersist() {
         shouldPersist = false
     }
