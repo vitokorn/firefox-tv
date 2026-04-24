@@ -143,10 +143,22 @@ class EngineViewCache(private val sessionRepo: SessionRepo) : LifecycleObserver 
         // Reset attempts on success
         setupAttempts = 0
 
-        session.setProgressDelegate(object : GeckoSession.ProgressDelegate {
-            override fun onPageStart(session: GeckoSession, url: String) = Unit
+        var lastNonInternalUrl = ""
 
-            override fun onPageStop(session: GeckoSession, success: Boolean) = Unit
+        session.setProgressDelegate(object : GeckoSession.ProgressDelegate {
+            override fun onPageStart(session: GeckoSession, url: String) {
+                Log.d("EngineViewCache", "onPageStart: url=$url")
+                val isInternal = url == "about:blank" || url == "data:text/html,<html></html>" || url.startsWith("data:text/html")
+                if (!isInternal) {
+                    lastNonInternalUrl = url
+                    sessionRepo.forceUpdate(loading = true, url = url)
+                }
+            }
+
+            override fun onPageStop(session: GeckoSession, success: Boolean) {
+                Log.d("EngineViewCache", "onPageStop: success=$success, lastUrl=$lastNonInternalUrl")
+                sessionRepo.forceUpdate(loading = false, url = lastNonInternalUrl)
+            }
 
             override fun onProgressChange(session: GeckoSession, progress: Int) = Unit
 

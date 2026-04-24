@@ -115,6 +115,29 @@ class SessionRepo(
         store.observeManually { update() }
     }
 
+    /**
+     * Force a state update with the given loading flag and URL.
+     * Used by Gecko progress delegate when BrowserStore observation isn't emitting.
+     */
+    fun forceUpdate(loading: Boolean, url: String) {
+        val currentState = _state.value
+        val newState = if (currentState != null) {
+            currentState.copy(loading = loading, currentUrl = url)
+        } else {
+            val tab = store.state.selectedTab
+            State(
+                backEnabled = canGoBackTwice?.invoke() ?: tab?.content?.canGoBack ?: false,
+                forwardEnabled = tab?.content?.canGoForward ?: false,
+                desktopModeActive = false,
+                turboModeActive = turboMode.isEnabled,
+                currentUrl = url,
+                loading = loading
+            )
+        }
+        Log.d("SessionRepo", "forceUpdate: loading=$loading, url=$url")
+        _state.onNext(newState)
+    }
+
     @AnyThread
     fun update() {
         store.state.selectedTab?.let { tab ->
