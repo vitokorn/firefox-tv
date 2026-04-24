@@ -46,6 +46,8 @@ object ScreenControllerStateMachine {
                 }
             }
             ActiveScreen.WEB_RENDER -> { // The browser handles webview back presses first
+                // Always show overlay when pressing back from web page
+                // (browser navigation is handled first by WebRenderFragment)
                 Transition.ADD_OVERLAY
             }
             ActiveScreen.SETTINGS -> {

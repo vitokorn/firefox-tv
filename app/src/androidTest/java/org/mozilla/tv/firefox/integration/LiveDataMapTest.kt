@@ -10,7 +10,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import org.mozilla.tv.firefox.ext.map
+import androidx.lifecycle.Transformations
 import org.mozilla.tv.firefox.helpers.MainActivityTestRule
 
 @Suppress("TestFunctionName")
@@ -30,8 +30,8 @@ class LiveDataMapTest {
     fun WHEN_map_is_called_on_source_THEN_source_is_not_modified() {
         activityTestRule.runOnUiThread {
             source.observeForever { assertEquals(1, it) }
-            source.map { it.toString() }
-            source.map { it * 5 }
+            sourceTransformations.map(source) { it.toString() }
+            sourceTransformations.map(source) { it * 5 }
             source.value = 1
         }
     }
@@ -39,8 +39,8 @@ class LiveDataMapTest {
     @Test
     fun WHEN_simple_maps_THEN_emit_expected_values() {
         activityTestRule.runOnUiThread {
-            val mapped1 = source.map { it.toString() }
-            val mapped2 = source.map { it * 5 }
+            val mapped1 = sourceTransformations.map(source) { it.toString() }
+            val mapped2 = sourceTransformations.map(source) { it * 5 }
             mapped1.observeForever { assertEquals("1", it) }
             mapped2.observeForever { assertEquals(5, it) }
             source.value = 1
@@ -51,8 +51,8 @@ class LiveDataMapTest {
     fun WHEN_maps_are_chained_THEN_emit_expected_values() {
         activityTestRule.runOnUiThread {
             val mapped = source
-                .map { it * 5 }
-                .map { it.toString() }
+                Transformations.map(source) { it * 5 }
+                Transformations.map(source) { it.toString() }
             mapped.observeForever { assertEquals("5", it) }
             source.value = 1
         }
@@ -62,7 +62,7 @@ class LiveDataMapTest {
     fun WHEN_source_is_updated_THEN_mapped_should_continue_to_emit_values() {
         activityTestRule.runOnUiThread {
             val firstObserver = Observer<Int> { assertEquals(2, it) }
-            val mapped = source.map { it * 2 }
+            val mapped = sourceTransformations.map(source) { it * 2 }
             mapped.observeForever(firstObserver)
 
             source.value = 1

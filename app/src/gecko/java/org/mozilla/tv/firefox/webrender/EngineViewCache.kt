@@ -6,14 +6,18 @@ package org.mozilla.tv.firefox.webrender
 
 import android.content.Context
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.AttributeSet
+import android.util.Log
 import android.view.View
 import android.view.ViewGroup
-import android.webkit.WebView
+import android.widget.FrameLayout
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleObserver
 import androidx.lifecycle.OnLifecycleEvent
 import mozilla.components.browser.engine.gecko.GeckoEngineView
+import org.mozilla.geckoview.GeckoSession
 import org.mozilla.tv.firefox.ext.canGoBackTwice
 import org.mozilla.tv.firefox.ext.webRenderComponents
 import org.mozilla.tv.firefox.session.SessionRepo
@@ -48,6 +52,31 @@ class EngineViewCache(private val sessionRepo: SessionRepo) : LifecycleObserver 
 
     private var cachedView: GeckoEngineView? = null
     private var shouldPersist = true
+    private var browserHistoryState: SessionRepo.BrowserHistoryState? = null
+
+    private fun String.isInternalBrowserUrl(): Boolean {
+        return this == "about:blank" || this == "data:text/html,<html></html>" || this.startsWith("data:text/html;charset=utf-8;base64,")
+    }
+
+    private fun SessionRepo.BrowserHistoryState.visibleUrl(): String? {
+        val currentHistoryUrl = urls.getOrNull(currentIndex)
+        if (currentHistoryUrl == null || !currentHistoryUrl.isInternalBrowserUrl()) {
+            return currentHistoryUrl
+        }
+
+        return urls.subList(0, currentIndex)
+            .asReversed()
+            .firstOrNull { !it.isInternalBrowserUrl() }
+    }
+
+    private fun SessionRepo.BrowserHistoryState.previousRealPageIndex(): Int? {
+        val targetIndex = urls
+            .subList(0, currentIndex)
+            .asReversed()
+            .indexOfFirst { !it.isInternalBrowserUrl() }
+
+        return if (targetIndex >= 0) currentIndex - targetIndex - 1 else null
+    }
 
     fun getEngineView(
         context: Context,
@@ -72,8 +101,75 @@ class EngineViewCache(private val sessionRepo: SessionRepo) : LifecycleObserver 
         }
 
         cachedView?.removeFromParentIfAble()
-        sessionRepo.canGoBackTwice = { cachedView?.canGoBackTwice() }
+
+        sessionRepo.canGoBackTwice = {
+            val hasHistory = browserHistoryState?.let {
+                val prevIndex = it.previousRealPageIndex()
+                Log.d("EngineViewCache", "canGoBackTwice: prevIndex=$prevIndex, currentIndex=${it.currentIndex}, urls=${it.urls}")
+                prevIndex != null
+            } ?: (cachedView?.canGoBackTwice() == true)
+            Log.d("EngineViewCache", "canGoBackTwice returning: $hasHistory")
+            hasHistory
+        }
         return cachedView ?: createAndCacheEngineView()
+    }
+
+    private val handler = Handler(Looper.getMainLooper())
+    private var setupAttempts = 0
+    private val maxSetupAttempts = 10
+
+    /**
+     * Must be called AFTER SessionFeature.start() has attached the session to the GeckoView.
+     * This is typically called from onEngineViewCreated() in WebRenderFragment.
+     * Will retry with delay if session is not yet available.
+     */
+    fun setupSessionDelegateIfNeeded() {
+        val engineView = cachedView ?: return
+        val geckoView = (engineView.asView() as FrameLayout).getChildAt(0) as? org.mozilla.geckoview.GeckoView
+        val session = geckoView?.session
+        Log.d("EngineViewCache", "setupSessionDelegateIfNeeded: attempt=${setupAttempts + 1}/$maxSetupAttempts, geckoView=$geckoView, session=$session")
+
+        if (session == null) {
+            if (setupAttempts < maxSetupAttempts) {
+                setupAttempts++
+                Log.d("EngineViewCache", "Session is null, retrying in 100ms (attempt $setupAttempts/$maxSetupAttempts)")
+                handler.postDelayed({ setupSessionDelegateIfNeeded() }, 100)
+            } else {
+                Log.w("EngineViewCache", "Session is null after $maxSetupAttempts attempts, giving up")
+            }
+            return
+        }
+
+        // Reset attempts on success
+        setupAttempts = 0
+
+        session.setProgressDelegate(object : GeckoSession.ProgressDelegate {
+            override fun onPageStart(session: GeckoSession, url: String) = Unit
+
+            override fun onPageStop(session: GeckoSession, success: Boolean) = Unit
+
+            override fun onProgressChange(session: GeckoSession, progress: Int) = Unit
+
+            override fun onSecurityChange(
+                session: GeckoSession,
+                securityInfo: GeckoSession.ProgressDelegate.SecurityInformation
+            ) = Unit
+
+            override fun onSessionStateChange(session: GeckoSession, sessionState: GeckoSession.SessionState) {
+                val urls = sessionState.map { it.uri }
+                Log.d("EngineViewCache", "onSessionStateChange: currentIndex=${sessionState.currentIndex}, urls=$urls")
+                browserHistoryState = SessionRepo.BrowserHistoryState(
+                    currentIndex = sessionState.currentIndex,
+                    urls = urls
+                )
+            }
+        })
+        sessionRepo.browserHistoryState = { browserHistoryState }
+        sessionRepo.browserHistoryNavigateToIndex = { index ->
+            Log.d("EngineViewCache", "browserHistoryNavigateToIndex: navigating to index $index")
+            session.gotoHistoryIndex(index)
+        }
+        Log.d("EngineViewCache", "Session delegate setup complete")
     }
 
     @OnLifecycleEvent(Lifecycle.Event.ON_CREATE)
@@ -87,7 +183,12 @@ class EngineViewCache(private val sessionRepo: SessionRepo) : LifecycleObserver 
     }
 
     private fun clear() {
+        handler.removeCallbacksAndMessages(null)
+        setupAttempts = 0
         sessionRepo.canGoBackTwice = null
+        sessionRepo.browserHistoryState = null
+        sessionRepo.browserHistoryNavigateToIndex = null
+        browserHistoryState = null
         cachedView?.onStop()
         cachedView?.onDestroy()
         cachedView = null

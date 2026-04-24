@@ -6,9 +6,8 @@ package org.mozilla.tv.firefox.webrender
 
 import android.content.Context
 import mozilla.components.browser.engine.system.SystemEngine
-import mozilla.components.browser.session.SessionManager
-import mozilla.components.browser.session.usecases.EngineSessionUseCases
 import mozilla.components.browser.state.store.BrowserStore
+import mozilla.components.browser.state.middleware.EngineMiddleware
 import mozilla.components.concept.engine.DefaultSettings
 import mozilla.components.concept.engine.Engine
 import mozilla.components.feature.session.SessionUseCases
@@ -53,11 +52,11 @@ class WebRenderComponents(applicationContext: Context, systemUserAgent: String) 
         ))
     }
 
-    val store by lazy { BrowserStore() }
+    val store by lazy {
+        BrowserStore(
+            middleware = EngineMiddleware.create(engine)
+        )
+    }
 
-    val sessionManager by lazy { SessionManager(engine, store) }
-
-    val sessionUseCases by lazy { SessionUseCases(sessionManager) }
-
-    val engineSessionUseCases by lazy { EngineSessionUseCases(sessionManager) }
+    val sessionUseCases by lazy { SessionUseCases(store) }
 }

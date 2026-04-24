@@ -4,10 +4,9 @@
 
 package org.mozilla.tv.firefox.experiments
 
-import mozilla.components.service.fretboard.ExperimentDescriptor
-
 /**
- * [ExperimentConfig] defines a set of supported [ExperimentDescriptor] from [Fretboard]
+ * [ExperimentConfig] defines experiment identifiers.
+ * service-fretboard removed in 128.x - this is kept for reference only.
  */
 enum class ExperimentConfig(val value: String) {
     // N.B.: an experiment WILL ALWAYS BE DISABLED if it is not added to the fretboard backend.

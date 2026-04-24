@@ -4,17 +4,19 @@
 
 package org.mozilla.tv.firefox.webrender
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import mozilla.components.browser.engine.gecko.GeckoEngine
-import mozilla.components.browser.session.SessionManager
-import mozilla.components.browser.session.usecases.EngineSessionUseCases
 import mozilla.components.browser.state.store.BrowserStore
+import mozilla.components.browser.state.engine.EngineMiddleware
 import mozilla.components.concept.engine.DefaultSettings
 import mozilla.components.concept.engine.Engine
 import mozilla.components.feature.session.SessionUseCases
 import mozilla.components.support.utils.SafeIntent
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoRuntimeSettings
+import org.mozilla.tv.firefox.FirefoxApplication
 import org.mozilla.tv.firefox.R
 import org.mozilla.tv.firefox.utils.BuildConstants
 import org.mozilla.tv.firefox.utils.Settings
@@ -23,6 +25,21 @@ import org.mozilla.tv.firefox.utils.Settings
  * Helper class for lazily instantiating and keeping references to components needed by the
  * application.
  */
+private class VisualContextWrapper(
+    base: Context,
+    private val activityProvider: () -> Activity?
+) : ContextWrapper(base) {
+    override fun getSystemService(name: String): Any? {
+        if (Context.WINDOW_SERVICE == name) {
+            val activity = activityProvider()
+            if (activity != null && !activity.isDestroyed) {
+                return activity.getSystemService(name)
+            }
+        }
+        return super.getSystemService(name)
+    }
+}
+
 class WebRenderComponents(applicationContext: Context, systemUserAgent: String) {
     // The first intent the App was launched with.  Used to pass configuration through to Gecko.
     private var launchSafeIntent: SafeIntent? = null
@@ -53,7 +70,10 @@ class WebRenderComponents(applicationContext: Context, systemUserAgent: String) 
             }
         }
         // autoplayDefault removed in v56+ GeckoRuntimeSettings. Autoplay now configured via DefaultSettings.mediaPlaybackRequiresUserGesture.
-        val runtime = GeckoRuntime.create(applicationContext,
+        val visualContext = VisualContextWrapper(applicationContext) {
+            (applicationContext as? FirefoxApplication)?.visibilityLifeCycleCallback?.currentActivity
+        }
+        val runtime = GeckoRuntime.create(visualContext,
                 runtimeSettingsBuilder.build())
 
         GeckoEngine(applicationContext, DefaultSettings(
@@ -75,11 +95,11 @@ class WebRenderComponents(applicationContext: Context, systemUserAgent: String) 
         ), runtime)
     }
 
-    val store by lazy { BrowserStore() }
+    val store by lazy {
+        BrowserStore(
+            middleware = EngineMiddleware.create(engine)
+        )
+    }
 
-    val sessionManager by lazy { SessionManager(engine, store) }
-
-    val sessionUseCases by lazy { SessionUseCases(sessionManager) }
-
-    val engineSessionUseCases by lazy { EngineSessionUseCases(sessionManager) }
+    val sessionUseCases by lazy { SessionUseCases(store) }
 }

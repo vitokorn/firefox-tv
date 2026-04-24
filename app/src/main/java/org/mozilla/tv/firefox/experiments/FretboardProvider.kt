@@ -5,65 +5,28 @@
 package org.mozilla.tv.firefox.experiments
 
 import android.content.Context
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import mozilla.components.service.fretboard.Fretboard
-import mozilla.components.service.fretboard.ValuesProvider
-import mozilla.components.service.fretboard.source.kinto.KintoExperimentSource
-import mozilla.components.service.fretboard.storage.flatfile.FlatFileExperimentStorage
 import org.mozilla.tv.firefox.telemetry.TelemetryIntegration
-import org.mozilla.tv.firefox.utils.HttpUrlConnectionWrapper
-import java.io.File
-import kotlin.coroutines.CoroutineContext
 
-const val EXPERIMENTS_JSON_FILENAME = "experiments.json"
-const val EXPERIMENTS_BASE_URL = "https://firefox.settings.services.mozilla.com/v1"
-const val EXPERIMENTS_BUCKET_NAME = "main"
-const val EXPERIMENTS_COLLECTION_NAME = "fftv-experiments"
+// service-fretboard removed in mozilla-components 128.x
+// This is a stub implementation to keep compilation working.
+// TODO: Replace with Nimbus experiments framework if needed.
 
-class FretboardProvider(private val applicationContext: Context) : CoroutineScope {
-    private var job = Job()
-    override val coroutineContext: CoroutineContext
-        get() = job + Dispatchers.Main
-
-    private val experimentsFile = File(applicationContext.filesDir, EXPERIMENTS_JSON_FILENAME)
-    private val experimentSource = KintoExperimentSource(
-            EXPERIMENTS_BASE_URL, EXPERIMENTS_BUCKET_NAME, EXPERIMENTS_COLLECTION_NAME,
-            HttpUrlConnectionWrapper.client
-    )
-
-    // We use the telemetry clientId because the data team wants to be able to reproduce
-    // buckets server-side in order to verify that clients are being bucketed correctly.
-    // This is low risk because:
-    // a) ID only gets sent to Mozilla servers
-    // b) ID + bucket doesn't leak personally identifiable information
-    val fretboard: Fretboard = Fretboard(experimentSource, FlatFileExperimentStorage(experimentsFile),
-            object : ValuesProvider() {
-                override fun getClientId(context: Context): String {
-                    return TelemetryIntegration.INSTANCE.clientId
-                }
-            })
+class FretboardProvider(private val applicationContext: Context) {
+    val fretboard: Any? = null
 
     // A list of the experiment names that the user is a part of.
-    private val activeExperimentNames: List<String>
-        get() = fretboard.getActiveExperiments(applicationContext)
-                .map { it.name }
+    private val activeExperimentNames: List<String> = emptyList()
 
     /**
      * Asynchronously requests new experiments from the server and
-     * saves them to local storage
+     * saves them to local storage. STUB - service-fretboard removed in 128.x.
      */
-    fun updateExperiments() = launch(Dispatchers.IO) { fretboard.updateExperiments() }
+    fun updateExperiments() { }
 
     /**
-     * Synchronously loads experiments from local storage.
-     * This is completed quickly, so we are comfortable blocking in order to
-     * reduce complexity by making experiments always available
+     * Synchronously loads experiments from local storage. STUB - service-fretboard removed in 128.x.
      */
     fun loadExperiments() {
-        fretboard.loadExperiments()
         TelemetryIntegration.INSTANCE.recordActiveExperiments(activeExperimentNames)
     }
 }

@@ -12,9 +12,8 @@ import android.webkit.ValueCallback
 import android.webkit.WebBackForwardList
 import android.webkit.WebView
 import androidx.annotation.VisibleForTesting
-import androidx.annotation.VisibleForTesting.PRIVATE
 import mozilla.components.browser.engine.system.SystemEngineSession
-import mozilla.components.browser.session.SessionManager
+import mozilla.components.browser.state.selector.selectedTab
 import mozilla.components.concept.engine.EngineView
 import org.mozilla.tv.firefox.ext.Js.BODY_ELEMENT_FOCUSED
 import org.mozilla.tv.firefox.ext.Js.CACHE_JS
@@ -274,7 +273,7 @@ fun EngineView.onResumeIfNotNull() {
 }
 
 // This method is only for adding extension methods here (as a workaround). Do not expose WebView to the app.
-@VisibleForTesting(otherwise = PRIVATE) val EngineView.webView: WebView?
+@VisibleForTesting(otherwise = VisibleForTesting.PRIVATE) val EngineView.webView: WebView?
     get() = getOrPutExtension(this).webView
 
 private val extensions = WeakHashMap<EngineView, EngineViewExtension>()
@@ -294,19 +293,15 @@ private fun getOrPutExtension(engineView: EngineView): EngineViewExtension {
 private class EngineViewExtension(private val engineView: EngineView) {
     val domElementCache: FocusedDOMElementCache = FocusedDOMElementCache(engineView)
 
-    private val sessionManager: SessionManager = engineView.asView().context.webRenderComponents.sessionManager
-
     /**
      * Extract the wrapped WebView from the EngineSession. This is a temporary workaround until all required functionality has
      * been implemented in the upstream component.
      */
     val webView: WebView?
-        get() =
-            if (sessionManager.size > 0) {
-                (sessionManager.getOrCreateEngineSession() as SystemEngineSession).webView
-            } else {
-                // After clearing all session we temporarily don't have a selected session
-                // and [SessionRepo.clear()] destroyed the existing webview - see [SystemEngineView.onDestroy()]
-                null
-            }
+        get() = if (engineView.asView().context.webRenderComponents.store.state.tabs.isNotEmpty()) {
+            val store = engineView.asView().context.webRenderComponents.store
+            (store.state.selectedTab?.engineState?.engineSession as? SystemEngineSession)?.webView
+        } else {
+            null
+        }
 }

@@ -9,7 +9,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.text.TextUtils
 import androidx.annotation.VisibleForTesting
-import mozilla.components.service.fretboard.ExperimentDescriptor
 import mozilla.components.support.utils.SafeIntent
 import org.mozilla.tv.firefox.components.locale.LocaleManager
 import org.mozilla.tv.firefox.ext.serviceLocator
@@ -90,13 +89,7 @@ object IntentValidator {
     }
 
     private fun setQAExperimentOverrides(intent: SafeIntent, context: Context) {
-        val experimentsArray = intent.extras?.getStringArray(EXTRA_ACTIVE_EXPERIMENTS) ?: return
-        val fretboard = context.serviceLocator.fretboardProvider.fretboard
-        fretboard.clearAllOverrides(context)
-
-        experimentsArray.forEach {
-            fretboard.setOverride(context, ExperimentDescriptor(it), true)
-        }
+        // service-fretboard removed in 128.x. Experiment overrides disabled.
     }
 
     private fun setQALocaleOverride(intent: SafeIntent, context: Context) {

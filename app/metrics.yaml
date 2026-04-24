@@ -11,7 +11,7 @@ legacy.ids:
     description: |
       The client id from legacy telemetry.
     send_in_pings:
-      - deletion_request
+      - deletion-request
     bugs:
       - https://github.com/mozilla-mobile/firefox-tv/issues/2989
     data_reviews:
@@ -19,3 +19,57 @@ legacy.ids:
     notification_emails:
       - amazon-dev@mozilla.com
     expires: never
+
+telemetry:
+  telemetry_event:
+    type: event
+    description: |
+      Replaces the legacy telemetry event ping by recording app telemetry events in Glean.
+    bugs:
+      - https://github.com/mozilla-mobile/firefox-tv/issues/2989
+    data_reviews:
+      - https://github.com/mozilla-mobile/firefox-tv/pull/2992
+    notification_emails:
+      - amazon-dev@mozilla.com
+    expires: never
+    extra_keys:
+      name:
+        description: |
+          The logical event name.
+        type: string
+      source:
+        description: |
+          The originating UI source for the event.
+        type: string
+      autocomplete:
+        description: |
+          Whether the URL bar action used autocomplete.
+        type: string
+      autocompl_src:
+        description: |
+          The autocomplete source used by the URL bar action.
+        type: string
+      total:
+        description: |
+          A numeric count encoded as a string.
+        type: string
+      tile_id:
+        description: |
+          The identifier for a home tile.
+        type: string
+      enabled:
+        description: |
+          Whether a toggle or boolean state is enabled.
+        type: string
+      device_type:
+        description: |
+          The device type associated with a received tab event.
+        type: string
+      error_code:
+        description: |
+          The error code associated with an SSL error event.
+        type: string
+      detail:
+        description: |
+          Event-specific extra detail such as a button name or search engine identifier.
+        type: string

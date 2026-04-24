@@ -6,6 +6,7 @@
 package org.mozilla.tv.firefox.webrender
 
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.webkit.WebView
 import androidx.annotation.UiThread
@@ -63,7 +64,7 @@ abstract class EngineViewLifecycleFragment : LocaleAwareFragment() {
             sessionFeature = SessionFeature(
                     components.store,
                     components.sessionUseCases.goBack,
-                    components.engineSessionUseCases,
+                    components.sessionUseCases.goForward,
                     this)
         }
     }
@@ -92,9 +93,12 @@ abstract class EngineViewLifecycleFragment : LocaleAwareFragment() {
 
     override fun onStart() {
         super.onStart()
+        Log.d("EngineViewLifecycleFragment", "onStart: calling sessionFeature.start()")
         sessionFeature.start()
+        Log.d("EngineViewLifecycleFragment", "onStart: sessionFeature.start() complete, engineView=$engineView")
 
         engineView?.apply {
+            Log.d("EngineViewLifecycleFragment", "onStart: calling onEngineViewCreated")
             val disposable = onEngineViewCreated(this)
             disposable?.let { compositeDisposable.add(it) }
 

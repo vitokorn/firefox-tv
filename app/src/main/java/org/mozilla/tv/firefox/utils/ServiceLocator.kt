@@ -71,9 +71,10 @@ open class ServiceLocator(val app: Application) {
     val viewModelFactory by lazy { ViewModelFactory(this, app) }
     val screenController by lazy { ScreenController(sessionRepo) }
     val engineViewCache by lazy { EngineViewCache(sessionRepo) }
-    val sessionManager get() = app.webRenderComponents.sessionManager
+    val store get() = app.webRenderComponents.store
     val sessionUseCases get() = app.webRenderComponents.sessionUseCases
-    val searchEngineManager by lazy { SearchEngineManagerFactory.create(app) }
+    // SearchEngineManager removed in 128.x - TODO: use feature-search APIs
+    val searchEngineManager: Any? = null
     val cursorModel by lazy { CursorModel(screenController.currentActiveScreen, frameworkRepo, sessionRepo) }
     val screenshotStoreWrapper by lazy { PinnedTileImageUtilWrapper(app) }
     val formattedDomainWrapper by lazy { FormattedDomainWrapper(app) }
@@ -85,6 +86,6 @@ open class ServiceLocator(val app: Application) {
     // These open vals are overridden in testing
     open val frameworkRepo = FrameworkRepo.newInstanceAndInit(app.getAccessibilityManager())
     open val pinnedTileRepo by lazy { PinnedTileRepo(app) }
-    open val sessionRepo by lazy { SessionRepo(sessionManager, sessionUseCases, turboMode).apply { observeSources() } }
+    open val sessionRepo by lazy { SessionRepo(store, sessionUseCases, turboMode).apply { observeSources() } }
     open val settingsRepo by lazy { SettingsRepo(app) }
 }

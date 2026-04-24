@@ -7,21 +7,19 @@ package org.mozilla.tv.firefox.webrender
 import android.content.Context
 import android.graphics.drawable.AnimationDrawable
 import android.util.AttributeSet
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import mozilla.components.browser.session.Session
 import org.mozilla.tv.firefox.R
-
-private const val HIDE_ANIMATION_DURATION_MILLIS = 250L
 
 class FirefoxProgressBar @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyle: Int = 0
-) : LinearLayout(context, attrs, defStyle), Session.Observer {
+) : LinearLayout(context, attrs, defStyle) {
 
     private val progressAnimationView: ImageView
         get() = findViewById(R.id.progressAnimation)
@@ -29,19 +27,13 @@ class FirefoxProgressBar @JvmOverloads constructor(
     private val urlView: TextView
         get() = findViewById(R.id.url)
 
-    fun initialize(webRenderFrag: WebRenderFragment) {
-        webRenderFrag.session.register(this, webRenderFrag)
-    }
-
-    override fun onLoadingStateChanged(session: Session, loading: Boolean) {
+    fun updateProgress(loading: Boolean, url: String) {
+        Log.d("FirefoxProgressBar", "updateProgress: loading=$loading, url=$url, visibility=$visibility")
         if (loading) {
             showBar()
         } else {
             hideBar()
         }
-    }
-
-    override fun onUrlChanged(session: Session, url: String) {
         urlView.text = url
     }
 
@@ -49,9 +41,12 @@ class FirefoxProgressBar @JvmOverloads constructor(
         LayoutInflater.from(context)
                 .inflate(R.layout.firefox_progress_bar, this, true)
         setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        visibility = View.GONE
+        alpha = 0f
     }
 
     private fun showBar() {
+        Log.d("FirefoxProgressBar", "showBar: visibility was $visibility")
         visibility = View.VISIBLE
         (progressAnimationView.background as AnimationDrawable).start()
         animate().cancel()
@@ -59,13 +54,10 @@ class FirefoxProgressBar @JvmOverloads constructor(
     }
 
     private fun hideBar() {
-        this.animate()
-                .withEndAction {
-                    this.visibility = View.GONE
-                    (this.progressAnimationView.background as AnimationDrawable).stop()
-                }
-                .setDuration(HIDE_ANIMATION_DURATION_MILLIS)
-                .alpha(0f)
-                .start()
+        Log.d("FirefoxProgressBar", "hideBar: visibility was $visibility")
+        animate().cancel()
+        (progressAnimationView.background as AnimationDrawable).stop()
+        visibility = View.GONE
+        alpha = 0f
     }
 }

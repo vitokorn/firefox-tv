@@ -32,7 +32,7 @@ class BasicNavigationTest {
     // On emulators, the URL bar shows various assets instead of page titles (#1444) whenever Turbo mode is enabled.
     fun basicNavigationTest() {
         val server = MockWebServer().apply {
-            setDispatcher(AndroidAssetDispatcher())
+            dispatcher = AndroidAssetDispatcher()
             start()
         }
 
@@ -134,7 +134,7 @@ class BasicNavigationTest {
     @Test
     fun navigateThenExitAppByBackButtonTest() {
         val server = MockWebServer().apply {
-            setDispatcher(AndroidAssetDispatcher())
+            dispatcher = AndroidAssetDispatcher()
             start()
         }
 

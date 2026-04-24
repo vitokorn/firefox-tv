@@ -6,27 +6,27 @@ package org.mozilla.tv.firefox.helpers
 
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.espresso.IdlingResource
+import mozilla.components.browser.state.selector.selectedTab
 import org.mozilla.tv.firefox.FirefoxApplication
 
 /**
  * An IdlingResource implementation that waits until the current session is not loading anymore.
  * Only after loading has completed further actions will be performed.
  */
-class SessionLoadedIdlingResource : IdlingResource {
-    private var resourceCallback: IdlingResource.ResourceCallback? = null
-    var ignoreLoading = false // Used in YouTubeNavigationTest to temporarily ignore the session idler
+class SessionLoadedIdlingResource(private val ignoreLoading: Boolean = false) : IdlingResource {
+    private var callback: IdlingResource.ResourceCallback? = null
 
     override fun getName(): String {
-        return SessionLoadedIdlingResource::class.java.simpleName
+        return this::class.java.simpleName
     }
 
     override fun isIdleNow(): Boolean {
         val context = ApplicationProvider.getApplicationContext<FirefoxApplication>()
-        val sessionManager = context.components.sessionManager
+        val store = context.components.store
 
-        val session = sessionManager.selectedSession
+        val tab = store.state.selectedTab
 
-        return if (session?.loading == true && !ignoreLoading) {
+        return if (tab?.content?.loading == true && !ignoreLoading) {
             false
         } else {
             invokeCallback()
@@ -35,12 +35,12 @@ class SessionLoadedIdlingResource : IdlingResource {
     }
 
     private fun invokeCallback() {
-        if (resourceCallback != null) {
-            resourceCallback!!.onTransitionToIdle()
+        if (callback != null) {
+            callback!!.onTransitionToIdle()
         }
     }
 
     override fun registerIdleTransitionCallback(callback: IdlingResource.ResourceCallback) {
-        this.resourceCallback = callback
+        this.callback = callback
     }
 }

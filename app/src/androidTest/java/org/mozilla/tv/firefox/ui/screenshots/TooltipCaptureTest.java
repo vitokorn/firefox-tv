@@ -55,7 +55,7 @@ public class TooltipCaptureTest extends ScreenshotTest {
     @Test
     public void showToolTips() throws InterruptedException, IOException {
         MockWebServer mockServer = new MockWebServer();
-        mockServer.setDispatcher(new AndroidAssetDispatcher());
+        mockServer.dispatcher = new AndroidAssetDispatcher();
         mockServer.start();
 
         List<TestAssetHelper.TestAsset> pages = TestAssetHelper.INSTANCE.getGenericAssets(mockServer);

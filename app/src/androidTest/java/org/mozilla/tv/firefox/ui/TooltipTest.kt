@@ -35,7 +35,7 @@ class TooltipTest {
     @Test
     fun tooltipTest() {
         val server = MockWebServer().apply {
-            setDispatcher(AndroidAssetDispatcher())
+            dispatcher = AndroidAssetDispatcher()
             start()
         }
 

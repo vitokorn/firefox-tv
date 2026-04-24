@@ -24,9 +24,6 @@
 #   public *;
 #}
 
--keep public class com.amazon.android.webkit.android.AndroidWebKitFactory { public *; }
--keep public class com.amazon.android.webkit.embedded.EmbeddedWebKitFactory { public *; }
-
 # Uncomment this to preserve the line number information for
 # debugging stack traces.
 #-keepattributes SourceFile,LineNumberTable
@@ -86,10 +83,7 @@
 -dontwarn sun.misc.Unsafe
 
 ####################################################################################################
-# Amazon
+# Amazon WebView (Fire TV)
 ####################################################################################################
--libraryjars libs/amazon-device-messaging-1.0.1.jar
--dontwarn com.amazon.device.messaging.**
--keep class com.amazon.device.messaging.** {*;}
--keep public class * extends com.amazon.device.messaging.ADMMessageReceiver
--keep public class * extends com.amazon.device.messaging.ADMMessageHandlerBase
+-keep public class com.amazon.android.webkit.android.AndroidWebKitFactory { public *; }
+-keep public class com.amazon.android.webkit.embedded.EmbeddedWebKitFactory { public *; }

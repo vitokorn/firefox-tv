@@ -9,7 +9,7 @@ import android.content.SharedPreferences
 import android.graphics.Bitmap
 import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
-import androidx.lifecycle.LiveDataReactiveStreams
+import androidx.lifecycle.LiveData
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Observable
 import io.reactivex.subjects.BehaviorSubject
@@ -39,10 +39,6 @@ class PinnedTileRepo(
 
     val isEmpty: Observable<Boolean> = _pinnedTiles.map { it.size == 0 }
             .distinctUntilChanged()
-
-    @Deprecated(message = "Use PinnedTileRepo.pinnedTiles for new code")
-    val legacyPinnedTiles = LiveDataReactiveStreams
-            .fromPublisher(pinnedTiles.toFlowable(BackpressureStrategy.LATEST))
 
     // Persist custom & bundled tiles size for telemetry
     var customTilesSize = 0

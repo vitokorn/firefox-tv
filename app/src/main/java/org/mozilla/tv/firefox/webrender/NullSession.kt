@@ -4,7 +4,8 @@
 
 package org.mozilla.tv.firefox.webrender
 
-import mozilla.components.browser.session.Session
+import mozilla.components.browser.state.state.ContentState
+import mozilla.components.browser.state.state.TabSessionState
 
 /**
  * Helper class for migrating to browser-session component. Eventually this class should get
@@ -14,6 +15,9 @@ import mozilla.components.browser.session.Session
 class NullSession private constructor() {
     companion object {
         @JvmStatic
-        fun create(): Session = Session("about:blank")
+        fun create(): TabSessionState = TabSessionState(
+            id = "null-session",
+            content = ContentState(url = "about:blank")
+        )
     }
 }

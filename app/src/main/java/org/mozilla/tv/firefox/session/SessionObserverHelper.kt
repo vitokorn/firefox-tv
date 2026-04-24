@@ -4,55 +4,20 @@
 
 package org.mozilla.tv.firefox.session
 
-import mozilla.components.browser.session.Session
-import mozilla.components.browser.session.SessionManager
+import mozilla.components.browser.state.store.BrowserStore
 
 /**
- * A facade to simplify the process of observing [Session]s and sending their information to a [SessionRepo].
+ * A facade to simplify the process of observing [BrowserStore] state changes
+ * and sending their information to a [SessionRepo].
  *
- * Whenever [Session]s are added or removed, this adds/removes a session observer.
- *
- * Whenever [Session]s change, this prompts the [SessionRepo] to update.
+ * browser-session Session/SessionManager removed in 128.x - replaced by browser-state.
  */
 class SessionObserverHelper private constructor(sessionRepo: SessionRepo) {
 
     companion object {
-        fun attach(sessionRepo: SessionRepo, sessionManager: SessionManager) {
-            val updater = SessionObserverHelper(sessionRepo)
-            sessionManager.selectedSession?.register(updater.sessionObserver)
-            sessionManager.register(updater.sessionManagerObserver)
-        }
-    }
-
-    // Any time the observed session changes, force the repo to update
-    private val sessionObserver = object : Session.Observer {
-        override fun onUrlChanged(session: Session, url: String) {
-            sessionRepo.update()
-        }
-
-        override fun onDesktopModeChanged(session: Session, enabled: Boolean) {
-            sessionRepo.update()
-        }
-
-        override fun onLoadingStateChanged(session: Session, loading: Boolean) {
-            sessionRepo.update()
-        }
-
-        override fun onNavigationStateChanged(session: Session, canGoBack: Boolean, canGoForward: Boolean) {
-            sessionRepo.update()
-        }
-    }
-
-    // Any time a new session is created, add a sessionObserver to it.
-    // When a session is removed, remove the sessionObserver.
-    val sessionManagerObserver = object : SessionManager.Observer {
-        override fun onSessionSelected(session: Session) {
-            session.register(sessionObserver)
-            sessionRepo.update()
-        }
-
-        override fun onSessionRemoved(session: Session) {
-            session.unregister(sessionObserver)
+        fun attach(sessionRepo: SessionRepo, store: BrowserStore) {
+            // Observe BrowserStore state changes directly
+            store.observeManually { sessionRepo.update() }
         }
     }
 }

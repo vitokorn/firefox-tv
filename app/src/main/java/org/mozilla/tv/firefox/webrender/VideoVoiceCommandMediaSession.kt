@@ -38,7 +38,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import mozilla.components.browser.session.Session
 import mozilla.components.concept.engine.EngineView
 import org.mozilla.tv.firefox.webrender.VideoVoiceCommandMediaSession.MediaSessionCallbacks
 import org.mozilla.tv.firefox.ext.addJavascriptInterface
@@ -125,21 +124,20 @@ class VideoVoiceCommandMediaSession @UiThread constructor(
                 MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS)
     }
 
-    fun onCreateEngineView(engineView: EngineView, session: Session) {
+    fun onCreateEngineView(engineView: EngineView, tabId: String) {
         this.engineView = engineView.apply {
             addJavascriptInterface(JavascriptVideoPlaybackStateSyncer(), JS_INTERFACE_IDENTIFIER)
         }
 
-        val sessionIsLoadingObserver = SessionIsLoadingObserver(engineView, session)
-        session.register(sessionIsLoadingObserver, owner = activity)
+        // Session observer removed in 128.x - store-based observation used instead
+        val sessionIsLoadingObserver = SessionIsLoadingObserver(engineView, tabId)
         this.sessionIsLoadingObserver = sessionIsLoadingObserver
     }
 
-    fun onDestroyEngineView(engineView: EngineView, session: Session) {
+    fun onDestroyEngineView(engineView: EngineView, tabId: String) {
         engineView.removeJavascriptInterface(JS_INTERFACE_IDENTIFIER)
         this.engineView = null
 
-        session.unregister(sessionIsLoadingObserver!!)
         this.sessionIsLoadingObserver = null
     }
 
@@ -215,11 +213,13 @@ class VideoVoiceCommandMediaSession @UiThread constructor(
         else -> false
     }
 
-    class SessionIsLoadingObserver(private val engineView: EngineView, private val session: Session) : Session.Observer {
-        override fun onLoadingStateChanged(session: Session, loading: Boolean) {
-            if (!loading) {
-                engineView.observePlaybackState() // Calls through to JavascriptVideoPlaybackStateSyncer.
-            }
+    class SessionIsLoadingObserver(private val engineView: EngineView, private val tabId: String) {
+        fun onLoadingStateChanged(loading: Boolean) {
+            if (!loading) onLoadingComplete()
+        }
+
+        private fun onLoadingComplete() {
+            engineView.observePlaybackState() // Calls through to JavascriptVideoPlaybackStateSyncer.
         }
     }
 

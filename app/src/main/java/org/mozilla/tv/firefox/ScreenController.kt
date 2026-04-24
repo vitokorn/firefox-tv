@@ -6,14 +6,15 @@ package org.mozilla.tv.firefox
 
 import android.content.Context
 import android.text.TextUtils
+import android.util.Log
 import android.view.KeyEvent
 import androidx.annotation.VisibleForTesting
-import androidx.annotation.VisibleForTesting.NONE
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.FragmentTransaction
 import io.reactivex.Observable
 import io.reactivex.subjects.BehaviorSubject
-import mozilla.components.browser.session.Session
+import mozilla.components.browser.state.state.TabSessionState
+import mozilla.components.browser.state.selector.findTabOrCustomTab
 import org.mozilla.tv.firefox.ScreenControllerStateMachine.ActiveScreen
 import org.mozilla.tv.firefox.ScreenControllerStateMachine.Transition
 import org.mozilla.tv.firefox.channels.SettingsScreen
@@ -46,7 +47,7 @@ class ScreenController(private val sessionRepo: SessionRepo) {
      * We DO NOT use the Fragment backstack so that all transitions are controlled in the same manner, and we
      * don't end up mixing backstack actions with show/hide.
      */
-    fun setUpFragmentsForNewSession(fragmentManager: FragmentManager, session: Session) {
+    fun setUpFragmentsForNewSession(fragmentManager: FragmentManager, session: TabSessionState) {
         val renderFragment = WebRenderFragment.createForSession(session)
         fragmentManager
             .beginTransaction()
@@ -100,8 +101,8 @@ class ScreenController(private val sessionRepo: SessionRepo) {
         handleTransitionAndUpdateActiveScreen(fragmentManager, transition)
     }
 
-    fun showBrowserScreenForCurrentSession(fragmentManager: FragmentManager, session: Session) {
-        if (session.url != URLs.APP_URL_HOME) {
+    fun showBrowserScreenForCurrentSession(fragmentManager: FragmentManager, session: TabSessionState) {
+        if (session.content.url != URLs.APP_URL_HOME) {
             handleTransitionAndUpdateActiveScreen(fragmentManager, Transition.SHOW_BROWSER)
         }
     }
@@ -150,7 +151,7 @@ class ScreenController(private val sessionRepo: SessionRepo) {
     fun dispatchKeyEvent(
         keyEvent: KeyEvent,
         fragmentManager: FragmentManager,
-        @VisibleForTesting(otherwise = NONE) currentActiveScreen: ActiveScreen? = _currentActiveScreen.value
+        @VisibleForTesting currentActiveScreen: ActiveScreen? = _currentActiveScreen.value
     ): Boolean {
         if (keyEvent.keyCode == KeyEvent.KEYCODE_MENU) {
             return when (keyEvent.action) {
@@ -170,11 +171,20 @@ class ScreenController(private val sessionRepo: SessionRepo) {
     }
 
     fun handleBack(fragmentManager: FragmentManager): Boolean {
-        if (_currentActiveScreen.value == ActiveScreen.WEB_RENDER) {
-            if (sessionRepo.attemptBack()) return true
+        val currentScreen = _currentActiveScreen.value
+        Log.d("ScreenController", "handleBack: currentScreen=$currentScreen")
+
+        if (currentScreen == ActiveScreen.WEB_RENDER) {
+            val browserHandled = sessionRepo.attemptBack()
+            Log.d("ScreenController", "handleBack: browserHandled=$browserHandled")
+            if (browserHandled) return true
         }
-        val transition = ScreenControllerStateMachine.getNewStateBackPress(_currentActiveScreen.value!!, canGoBack())
-        return handleTransitionAndUpdateActiveScreen(fragmentManager, transition)
+        val canGoBack = canGoBack()
+        val transition = ScreenControllerStateMachine.getNewStateBackPress(currentScreen!!, canGoBack)
+        Log.d("ScreenController", "handleBack: canGoBack=$canGoBack, transition=$transition")
+        val result = handleTransitionAndUpdateActiveScreen(fragmentManager, transition)
+        Log.d("ScreenController", "handleBack: result=$result")
+        return result
     }
 
     fun handleMenu(fragmentManager: FragmentManager): Boolean {
@@ -188,18 +198,20 @@ class ScreenController(private val sessionRepo: SessionRepo) {
     }
 
     private fun canGoBack(): Boolean {
-        return sessionRepo.state.blockingFirst().backEnabled
+        return sessionRepo.currentState()?.backEnabled ?: false
     }
 
     private fun isOnHomeUrl(): Boolean {
         @Suppress("DEPRECATION")
-        return sessionRepo.state.blockingFirst().currentUrl == URLs.APP_URL_HOME
+        return sessionRepo.currentState()?.currentUrl == URLs.APP_URL_HOME
     }
 
     private fun handleTransitionAndUpdateActiveScreen(fragmentManager: FragmentManager, transition: Transition): Boolean {
+        Log.d("ScreenController", "handleTransitionAndUpdateActiveScreen: transition=$transition")
         // Call show() before hide() so that focus moves correctly to the shown fragment once others are hidden
         when (transition) {
             Transition.ADD_OVERLAY -> {
+                Log.d("ScreenController", "Executing ADD_OVERLAY transition")
                 // We always update the currentActiveScreen value before beginning the fragment transaction
                 _currentActiveScreen.onNext(ActiveScreen.NAVIGATION_OVERLAY)
                 fragmentManagerShowNavigationOverlay(fragmentManager, true)
@@ -257,8 +269,14 @@ class ScreenController(private val sessionRepo: SessionRepo) {
                     .hide(fragmentManager.navigationOverlayFragment())
                     .commitNow()
             }
-            Transition.EXIT_APP -> { return false }
-            Transition.NO_OP -> { return true }
+            Transition.EXIT_APP -> {
+                Log.d("ScreenController", "Executing EXIT_APP transition - app will exit")
+                return false
+            }
+            Transition.NO_OP -> {
+                Log.d("ScreenController", "Executing NO_OP transition")
+                return true
+            }
         }
         return true
     }

@@ -70,10 +70,8 @@ object UrlUtils {
 
     @JvmStatic
     fun createSearchUrl(context: Context, searchTerm: String): String {
-        val searchEngine = context.serviceLocator.searchEngineManager
-            .getDefaultSearchEngine(context)
-
-        return searchEngine.buildSearchUrl(searchTerm)
+        // SearchEngineManager removed in 128.x - hardcoded search URL for now
+        return "https://www.google.com/search?q=" + java.net.URLEncoder.encode(searchTerm, "UTF-8")
     }
 
     @JvmStatic

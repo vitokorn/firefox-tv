@@ -35,8 +35,18 @@ public class VisibilityLifeCycleCallback implements Application.ActivityLifecycl
      */
     private int activitiesInStartedState;
 
+    private Activity currentActivity;
+
     public VisibilityLifeCycleCallback(Context context) {
         this.context = context;
+    }
+
+    public Activity getCurrentActivity() {
+        return currentActivity;
+    }
+
+    public void setCurrentActivity(Activity activity) {
+        currentActivity = activity;
     }
 
     private void finishAndRemoveTaskIfInBackground() {
@@ -69,11 +79,17 @@ public class VisibilityLifeCycleCallback implements Application.ActivityLifecycl
     public void onActivityPaused(Activity activity) {}
 
     @Override
-    public void onActivityCreated(Activity activity, Bundle bundle) {}
+    public void onActivityCreated(Activity activity, Bundle bundle) {
+        currentActivity = activity;
+    }
 
     @Override
     public void onActivitySaveInstanceState(Activity activity, Bundle bundle) {}
 
     @Override
-    public void onActivityDestroyed(Activity activity) {}
+    public void onActivityDestroyed(Activity activity) {
+        if (currentActivity == activity) {
+            currentActivity = null;
+        }
+    }
 }

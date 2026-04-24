@@ -58,7 +58,7 @@ class FxaLoginUseCase(
         // TODO: should we throw an error if we're already authenticated when this is called?
         GlobalScope.launch(Dispatchers.Main) { // main thread: we modify UI state.
             // a-c#3713: this await will never resume if the user is already logged in.
-            val loginUri = fxaRepo.beginLoginInternalAsync().await()
+            val loginUri = fxaRepo.beginLoginInternalAsync()
 
             // This may be null when the FxA library fails to do things internally, mostly likely due to network issues.
             if (loginUri == null) {
@@ -110,15 +110,14 @@ class FxaLoginUseCase(
             .filter { isLoginSuccessUri(it) }
             .filterMapLoginSuccessKeys()
             .subscribe { loginSuccessKeys ->
-                fxaRepo.accountManager.finishAuthenticationAsync(loginSuccessKeys)
+                GlobalScope.launch { fxaRepo.accountManager.finishAuthentication(loginSuccessKeys.toFxaAuthData()) }
                 _onLoginSuccess.onNext(Unit)
             }
     }
 
     private data class LoginSuccessKeys(val authType: AuthType, val code: String, val state: String)
 
-    private fun FxaAccountManager.finishAuthenticationAsync(keys: LoginSuccessKeys) {
-        @Suppress("DeferredResultUnused") // We don't care to wait until completion.
-        finishAuthenticationAsync(FxaAuthData(keys.authType, keys.code, keys.state))
+    private fun LoginSuccessKeys.toFxaAuthData(): FxaAuthData {
+        return FxaAuthData(authType, code, state)
     }
 }

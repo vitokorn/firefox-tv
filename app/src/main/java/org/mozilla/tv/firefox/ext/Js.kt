@@ -4,7 +4,7 @@
 
 package org.mozilla.tv.firefox.ext
 
-import mozilla.components.browser.session.Session
+// Session import removed: browser-session replaced by browser-state
 
 object Js {
     const val CACHE_VAR = "_firefoxForFireTvPreviouslyFocusedElement"

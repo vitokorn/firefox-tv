@@ -105,15 +105,10 @@ class ToolbarUiController(
             }
         }
         this.movementMethod = IgnoreFocusMovementMethod()
-        val autocompleteProvider = ShippedDomainsProvider().apply {
-            initialize(
-                    context = context
-            )
-        }
-        setOnFilterListener { searchText, view ->
-            val result = autocompleteProvider.getAutocompleteSuggestion(searchText)
-            if (result != null)
-                view?.onAutocomplete(InlineAutocompleteEditText.AutocompleteResult(result.text, result.source, result.totalItems))
+        // browser-domains autocomplete API changed in 128.x - AutocompleteProvider interface removed
+        // TODO: Replace with new browser-awesomebar or concept-awesomebar autocomplete
+        setOnFilterListener { _, _ ->
+            // Autocomplete disabled pending browser-domains migration
         }
 
         setOnUserInputListener { hasUserChangedURLSinceEditTextFocused = true }

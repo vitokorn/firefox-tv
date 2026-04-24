@@ -8,6 +8,7 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.graphics.PointF
 import android.os.Bundle
+import android.util.Log
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
@@ -16,13 +17,15 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
 import androidx.core.view.isGone
+import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.rxkotlin.addTo
-import mozilla.components.browser.session.Session
-import mozilla.components.concept.engine.EngineSession
+import mozilla.components.browser.state.action.TabListAction
+import mozilla.components.browser.state.state.ContentState
+import mozilla.components.browser.state.state.TabSessionState
+import mozilla.components.browser.state.selector.findTab
 import mozilla.components.concept.engine.EngineView
-import mozilla.components.concept.engine.permission.Permission
 import mozilla.components.concept.engine.permission.PermissionRequest
 import mozilla.components.feature.session.SessionFeature
 import mozilla.components.support.ktx.android.util.dpToPx
@@ -57,17 +60,14 @@ private const val ARGUMENT_SESSION_UUID = "sessionUUID"
 /**
  * Fragment for displaying the browser UI.
  */
-class WebRenderFragment : EngineViewLifecycleFragment(), Session.Observer {
+class WebRenderFragment(private val sessionUUID: String) : EngineViewLifecycleFragment() {
+
     companion object {
         const val FRAGMENT_TAG = "browser"
 
         @JvmStatic
-        fun createForSession(session: Session) = WebRenderFragment().apply {
-            arguments = Bundle().apply { putString(ARGUMENT_SESSION_UUID, session.id) }
-        }
+        fun createForSession(session: TabSessionState) = WebRenderFragment(session.id)
     }
-
-    lateinit var session: Session
 
     private val mediaSessionHolder get() = activity as MediaSessionHolder? // null when not attached.
 
@@ -82,7 +82,6 @@ class WebRenderFragment : EngineViewLifecycleFragment(), Session.Observer {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        initSession()
 
         webRenderViewModel = FirefoxViewModelProviders.of(this).get(WebRenderViewModel::class.java)
     }
@@ -90,43 +89,11 @@ class WebRenderFragment : EngineViewLifecycleFragment(), Session.Observer {
     @SuppressLint("RestrictedApi")
     override fun onResume() {
         super.onResume()
+        val session = (requireWebRenderComponents.store.state.findTab(sessionUUID) as? TabSessionState) ?: NullSession.create()
         if (session.isYoutubeTV) {
             YoutubeGreyScreenWorkaround.invoke(activity)
         }
     }
-
-    private fun initSession() {
-        val sessionUUID = arguments?.getString(ARGUMENT_SESSION_UUID)
-                ?: throw IllegalAccessError("No session exists")
-        session = context!!.webRenderComponents.sessionManager.findSessionById(sessionUUID) ?: NullSession.create()
-        session.register(observer = this, owner = this)
-    }
-
-    override fun onUrlChanged(session: Session, url: String) {
-        if (url == URLs.APP_URL_HOME) serviceLocator?.screenController?.showNavigationOverlay(fragmentManager, true)
-        youtubeBackHandler.onUrlChanged(url)
-    }
-
-    override fun onLoadingStateChanged(session: Session, loading: Boolean) {
-        if (!loading) {
-            // If the page isn't finished loading, our observers won't be attached to capture the scroll position
-            // and the fix won't work. Unfortunately, I've spent too much time on this so I did not prepare a fix.
-            engineView?.observeScrollPosition()
-
-            if (session.url.isUrlWhitelistedForSubmitInputHack) {
-                engineView?.addSubmitListenerToInputElements()
-            }
-
-            youtubeBackHandler.onLoadComplete()
-        }
-    }
-
-    override fun onDesktopModeChanged(session: Session, enabled: Boolean) {
-        requireWebRenderComponents.sessionUseCases.requestDesktopSite.invoke(enabled, session)
-    }
-
-    override fun onContentPermissionRequested(session: Session, permissionRequest: PermissionRequest): Boolean =
-        permissionRequest.grantIf { it is Permission.ContentProtectedMediaId }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         val context = inflater.context
@@ -143,12 +110,12 @@ class WebRenderFragment : EngineViewLifecycleFragment(), Session.Observer {
         // Deprecation banner hidden - support restored.
         layout.findViewById<View>(R.id.bannerLayout).visibility = View.GONE
 
-        progressBarView.initialize(this)
+        // Session observers removed in 128.x. Progress bar updates via store observation.
 
         // We break encapsulation here: we should use the super.engineView reference but it's not init until
         // onViewCreated. However, overriding both onCreateView and onViewCreated in a single class
         // is confusing so I'd rather break encapsulation than confuse devs.
-        mediaSessionHolder?.videoVoiceCommandMediaSession?.onCreateEngineView(layoutEngineView, session)
+        mediaSessionHolder?.videoVoiceCommandMediaSession?.onCreateEngineView(layoutEngineView, sessionUUID)
 
         return layout
     }
@@ -161,6 +128,11 @@ class WebRenderFragment : EngineViewLifecycleFragment(), Session.Observer {
 
     // TODO: this method needs to be renamed (#2053); preliminary onStart() setup
     override fun onEngineViewCreated(engineView: EngineView): Disposable? {
+        Log.d("WebRenderFragment", "onEngineViewCreated called")
+
+        // Setup Gecko session delegate AFTER SessionFeature.start() has attached the session
+        serviceLocator?.engineViewCache?.setupSessionDelegateIfNeeded()
+
         return serviceLocator?.screenController?.currentActiveScreen?.subscribe {
             if (it != ActiveScreen.WEB_RENDER) {
                 // Pause all the videos when transitioning out of [WebRenderFragment] to mitigate possible
@@ -172,10 +144,28 @@ class WebRenderFragment : EngineViewLifecycleFragment(), Session.Observer {
 
     override fun onStart() {
         super.onStart()
+        Log.d("WebRenderFragment", "onStart called")
         val view = rootView ?: return
         val cursorView = view.findViewById<org.mozilla.tv.firefox.webrender.cursor.CursorView>(R.id.cursorView)
         val progressBar = view.findViewById<FirefoxProgressBar>(R.id.progressBar)
         val hintBarContainer = view.findViewById<View>(R.id.hintBarContainer)
+
+        Log.d("WebRenderFragment", "progressBar found: $progressBar")
+
+        serviceLocator!!.sessionRepo.currentState()?.let { state ->
+            Log.d("WebRenderFragment", "currentState: loading=${state.loading}, url=${state.currentUrl}")
+            progressBar.updateProgress(state.loading, state.currentUrl)
+        } ?: Log.d("WebRenderFragment", "currentState is null")
+
+        serviceLocator!!.sessionRepo.state
+            .observeOn(AndroidSchedulers.mainThread())
+            .doOnNext { state ->
+                Log.d("WebRenderFragment", "state update: loading=${state.loading}, url=${state.currentUrl}")
+            }
+            .subscribe { state ->
+                progressBar.updateProgress(state.loading, state.currentUrl)
+            }
+            .addTo(startStopCompositeDisposable)
 
         observeRequestFocus()
                 .addTo(startStopCompositeDisposable)
@@ -197,7 +187,8 @@ class WebRenderFragment : EngineViewLifecycleFragment(), Session.Observer {
          * its associated [EngineSession.webview]. We need make sure to load initialUrl after
          * WebView sets its WebViewClient (which happens during EngineView.render())
          */
-        requireWebRenderComponents.sessionManager.getOrCreateEngineSession().loadUrl(session.url)
+        val components = requireWebRenderComponents
+        components.sessionUseCases.loadUrl.invoke(components.store.state.findTab(sessionUUID)?.content?.url ?: "")
         serviceLocator!!.sessionRepo.events.subscribe {
             when (it) {
                 SessionRepo.Event.YouTubeBack -> youtubeBackHandler.onBackPressed()
@@ -235,7 +226,7 @@ class WebRenderFragment : EngineViewLifecycleFragment(), Session.Observer {
     }
 
     override fun onDestroyView() {
-        mediaSessionHolder?.videoVoiceCommandMediaSession?.onDestroyEngineView(engineView!!, session)
+        // mediaSessionHolder?.videoVoiceCommandMediaSession?.onDestroyEngineView(engineView!!, session)
 
         context!!.serviceLocator.cursorModel.webViewCouldScrollInDirectionProvider = null
 
@@ -265,17 +256,22 @@ class WebRenderFragment : EngineViewLifecycleFragment(), Session.Observer {
         }
     }
 
+    @Suppress("DEPRECATION")
     fun loadUrl(url: String) {
         if (url.isNotEmpty()) {
-            val session = requireWebRenderComponents.sessionManager.selectedSession
+            val store = requireWebRenderComponents.store
+            val selectedTab = store.state.selectedTabId?.let { store.state.findTab(it) }
 
-            if (session != null) {
+            if (selectedTab != null) {
                 // We already have an active session, let's just load the URL.
                 requireWebRenderComponents.sessionUseCases.loadUrl.invoke(url)
             } else {
                 // There's no session (anymore). Let's create a new one.
-                requireWebRenderComponents.sessionManager.add(Session(url), selected = true)
-                requireWebRenderComponents.sessionManager.getOrCreateEngineSession().resetView(activity!!)
+                val newTab = TabSessionState(
+                    id = sessionUUID,
+                    content = ContentState(url = url)
+                )
+                store.dispatch(TabListAction.AddTabAction(newTab, select = true))
             }
         }
     }

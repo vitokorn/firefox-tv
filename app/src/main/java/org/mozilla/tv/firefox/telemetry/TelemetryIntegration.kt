@@ -7,16 +7,12 @@ package org.mozilla.tv.firefox.telemetry
 
 import android.content.Context
 import android.net.http.SslError
-import android.os.StrictMode
 import android.view.InputDevice
 import android.view.KeyEvent
 import androidx.annotation.UiThread
 import mozilla.components.concept.sync.DeviceType
-import mozilla.components.support.ktx.android.os.resetAfter
-import org.mozilla.telemetry.event.TelemetryEvent
-import org.mozilla.telemetry.measurement.SearchesMeasurement
-import org.mozilla.telemetry.ping.TelemetryCorePingBuilder
-import org.mozilla.telemetry.ping.TelemetryMobileEventPingBuilder
+import mozilla.components.service.glean.Glean
+import org.mozilla.tv.firefox.GleanMetrics.Telemetry as TelemetryMetrics
 import org.mozilla.tv.firefox.channels.ChannelTile
 import org.mozilla.tv.firefox.channels.SettingsButton
 import org.mozilla.tv.firefox.channels.SettingsScreen
@@ -45,6 +41,9 @@ open class TelemetryIntegration protected constructor(
     companion object {
         val INSTANCE: TelemetryIntegration by lazy { TelemetryIntegration() }
     }
+
+    private var activeExperimentNames: Set<String> = emptySet()
+    private var sessionActive: Boolean = false
 
     private object Category {
         const val ACTION = "action"
@@ -131,21 +130,45 @@ open class TelemetryIntegration protected constructor(
         const val BOOLEAN = "boolean"
     }
 
+    private fun recordTelemetryEvent(
+        name: String,
+        source: String? = null,
+        autocomplete: String? = null,
+        autocomplSrc: String? = null,
+        total: String? = null,
+        tileId: String? = null,
+        enabled: String? = null,
+        deviceType: String? = null,
+        errorCode: String? = null,
+        detail: String? = null
+    ) {
+        TelemetryMetrics.telemetryEvent.record(
+            TelemetryMetrics.TelemetryEventExtra(
+                name = name,
+                source = source,
+                autocomplete = autocomplete,
+                autocomplSrc = autocomplSrc,
+                total = total,
+                tileId = tileId,
+                enabled = enabled,
+                deviceType = deviceType,
+                errorCode = errorCode,
+                detail = detail
+            )
+        )
+    }
+
     fun init(context: Context) {
-        // When initializing the telemetry library it will make sure that all directories exist and
-        // are readable/writable.
-        StrictMode.allowThreadDiskWrites().resetAfter {
-            DeprecatedTelemetryHolder.set(TelemetryFactory.createTelemetry(context))
-        }
+        // No-op; Glean is initialized by FirefoxApplication.
     }
 
     val clientId: String
-        get() = DeprecatedTelemetryHolder.get().clientId
+        get() = ""
 
     @UiThread // via TelemetryHomeTileUniqueClickPerSessionCounter
     fun startSession(context: Context) {
-        DeprecatedTelemetryHolder.get().recordSessionStart()
-        TelemetryEvent.create(Category.ACTION, Method.FOREGROUND, Object.APP).queue()
+        recordTelemetryEvent("session_start")
+        sessionActive = true
 
         // We call reset in both startSession and stopSession. We call it here to make sure we
         // clean up before a new session if we crashed before stopSession.
@@ -154,17 +177,17 @@ open class TelemetryIntegration protected constructor(
 
     @UiThread // via TelemetryHomeTileUniqueClickPerSessionCounter
     fun stopSession(context: Context) {
-        // We cannot use named arguments here as we are calling into Java code
-        DeprecatedTelemetryHolder.get().recordSessionEnd { // onFailure =
-            sentryIntegration.capture(IllegalStateException("Telemetry#recordSessionEnd called when no session was active"))
+        if (!sessionActive) {
+            sentryIntegration.capture(IllegalStateException("Telemetry#stopSession called when no session was active"))
         }
 
-        TelemetryEvent.create(Category.ACTION, Method.BACKGROUND, Object.APP).queue()
+        recordTelemetryEvent("session_stop")
 
         // We call reset in both startSession and stopSession. We call it here to make sure we
         // don't persist the user's visited tile history on disk longer than strictly necessary.
         queueSessionMeasurements(context)
         resetSessionMeasurements(context)
+        sessionActive = false
     }
 
     private fun queueSessionMeasurements(context: Context) {
@@ -177,10 +200,7 @@ open class TelemetryIntegration protected constructor(
     }
 
     fun stopMainActivity() {
-        DeprecatedTelemetryHolder.get()
-                .queuePing(TelemetryCorePingBuilder.TYPE)
-                .queuePing(TelemetryMobileEventPingBuilder.TYPE)
-                .scheduleUpload()
+        // Glean submits the events ping automatically when the application becomes inactive.
     }
 
     fun urlBarEvent(isUrl: Boolean, autocompleteResult: AutocompleteResult, inputLocation: UrlTextInputLocation) {
@@ -192,29 +212,22 @@ open class TelemetryIntegration protected constructor(
     }
 
     private fun browseEvent(autocompleteResult: AutocompleteResult, inputLocation: UrlTextInputLocation) {
-        val event = TelemetryEvent.create(Category.ACTION, Method.TYPE_URL, Object.SEARCH_BAR)
-                .extra(Extra.AUTOCOMPLETE, (!autocompleteResult.isEmpty).toString())
-                .extra(Extra.SOURCE, inputLocation.extra)
-
-        if (!autocompleteResult.isEmpty) {
-            event.extra(Extra.TOTAL, autocompleteResult.totalItems.toString())
-            event.extra(Extra.AUTOCOMPLETE_SOURCE, autocompleteResult.source)
-        }
-
-        event.queue()
+        recordTelemetryEvent(
+            "url_entered",
+            source = inputLocation.extra,
+            autocomplete = (!autocompleteResult.isEmpty).toString(),
+            total = if (!autocompleteResult.isEmpty) autocompleteResult.totalItems.toString() else null,
+            autocomplSrc = if (!autocompleteResult.isEmpty) autocompleteResult.source else null
+        )
     }
 
     private fun searchEnterEvent(inputLocation: UrlTextInputLocation) {
-        val telemetry = DeprecatedTelemetryHolder.get()
-
-        TelemetryEvent.create(Category.ACTION, Method.TYPE_QUERY, Object.SEARCH_BAR)
-                .extra(Extra.SOURCE, inputLocation.extra)
-                .queue()
-
-        val context = telemetry.configuration.context
-        val searchEngine = context.serviceLocator.searchEngineManager.getDefaultSearchEngine(context)
-
-        telemetry.recordSearch(SearchesMeasurement.LOCATION_ACTIONBAR, searchEngine.identifier)
+        // SearchEngineManager removed in 128.x - search engine identifier unavailable.
+        recordTelemetryEvent(
+            "search_query",
+            source = inputLocation.extra,
+            detail = ""
+        )
     }
 
     fun sslErrorEvent(fromPage: Boolean, error: SslError) {
@@ -228,40 +241,44 @@ open class TelemetryIntegration protected constructor(
             SslError.SSL_INVALID -> "SSL_INVALID"
             else -> "Undefined SSL Error"
         }
-        TelemetryEvent.create(Category.ERROR, if (fromPage) Method.PAGE else Method.RESOURCE, Object.BROWSER)
-                .extra(Extra.ERROR_CODE, primaryErrorMessage)
-                .queue()
+        recordTelemetryEvent(
+            if (fromPage) "ssl_error_page" else "ssl_error_resource",
+            errorCode = primaryErrorMessage
+        )
     }
 
     fun fullScreenVideoProgrammaticallyClosed() {
-        TelemetryEvent.create(Category.ACTION, Method.PROGRAMMATICALLY_CLOSED, Object.FULL_SCREEN_VIDEO).queue()
+        recordTelemetryEvent("full_screen_video_programmatically_closed")
     }
 
     @UiThread // via TelemetryHomeTileUniqueClickPerSessionCounter
     fun homeTileClickEvent(context: Context, tile: ChannelTile) {
         if (tile.id == YOUTUBE_TILE_ID) {
-            TelemetryEvent.create(Category.ACTION, Method.CLICK, Object.HOME_TILE,
-                    Value.YOUTUBE_TILE).queue()
+            recordTelemetryEvent("home_tile_click", detail = Value.YOUTUBE_TILE)
         }
-        // Add an extra that contains the tileId for bundled tiles only
+
         val tileType = getTileTypeAsStringValue(tile)
         if (tileType == Value.TILE_BUNDLED) {
-            TelemetryEvent.create(Category.ACTION, Method.CLICK, Object.HOME_TILE, tileType)
-                .extra(Extra.TILE_ID, tile.id)
-                .queue()
+            recordTelemetryEvent(
+                "home_tile_click",
+                tileId = tile.id,
+                detail = tileType
+            )
         } else {
-            TelemetryEvent.create(Category.ACTION, Method.CLICK, Object.HOME_TILE, tileType).queue()
+            recordTelemetryEvent("home_tile_click", detail = tileType)
         }
         TelemetryHomeTileUniqueClickPerSessionCounter.countTile(context, tile)
     }
 
     internal fun homeTileUniqueClickCountPerSessionEvent(uniqueClickCountPerSession: Int) {
-        TelemetryEvent.create(Category.AGGREGATE, Method.CLICK, Object.HOME_TILE, uniqueClickCountPerSession.toString())
-                .queue()
+        recordTelemetryEvent(
+            "home_tile_unique_click_count",
+            total = uniqueClickCountPerSession.toString()
+        )
     }
 
     fun clearDataEvent() {
-        TelemetryEvent.create(Category.ACTION, Method.CHANGE, Object.SETTING, Value.CLEAR_DATA).queue()
+        recordTelemetryEvent("clear_data")
     }
 
     fun settingsTileClickEvent(tile: SettingsTile) {
@@ -272,61 +289,61 @@ open class TelemetryIntegration protected constructor(
             SettingsButton.PRIVACY_POLICY -> Value.SETTINGS_PRIVACY_TILE
             else -> null
         }
-        TelemetryEvent.create(Category.ACTION, Method.CLICK, Object.SETTING, telemetryValue).queue()
+        recordTelemetryEvent("settings_tile_click", detail = telemetryValue)
     }
 
     fun fxaLoginButtonClickEvent() {
-        TelemetryEvent.create(Category.ACTION, Method.CLICK, Object.FXA, Value.FXA_LOGIN_BUTTON).queue()
+        recordTelemetryEvent("fxa_login_button_click", detail = Value.FXA_LOGIN_BUTTON)
     }
 
     fun fxaReauthorizeButtonClickEvent() {
-        TelemetryEvent.create(Category.ACTION, Method.CLICK, Object.FXA, Value.FXA_REAUTHENTICATE_BUTTON).queue()
+        recordTelemetryEvent("fxa_reauthorize_button_click", detail = Value.FXA_REAUTHENTICATE_BUTTON)
     }
 
     fun fxaShowProfileButtonClickEvent() {
-        TelemetryEvent.create(Category.ACTION, Method.CLICK, Object.FXA, Value.FXA_SHOW_PROFILE_BUTTON).queue()
+        recordTelemetryEvent("fxa_show_profile_button_click", detail = Value.FXA_SHOW_PROFILE_BUTTON)
     }
 
     fun fxaProfileShowOnboardingButtonClickEvent() {
-        TelemetryEvent.create(Category.ACTION, Method.CLICK, Object.FXA, Value.FXA_GET_TABS_BUTTON).queue()
+        recordTelemetryEvent("fxa_profile_get_tabs_button_click", detail = Value.FXA_GET_TABS_BUTTON)
     }
 
     fun fxaShowOnboardingEvent() {
-        TelemetryEvent.create(Category.ACTION, Method.USER_SHOW, Object.FXA, Value.FXA_SHOW_ONBOARDING).queue()
+        recordTelemetryEvent("fxa_show_onboarding", detail = Value.FXA_SHOW_ONBOARDING)
     }
 
     fun fxaProfileSignOutButtonClickEvent() {
-        TelemetryEvent.create(Category.ACTION, Method.CLICK, Object.FXA, Value.FXA_SIGN_OUT_BUTTON).queue()
+        recordTelemetryEvent("fxa_profile_sign_out_button_click", detail = Value.FXA_SIGN_OUT_BUTTON)
     }
 
     fun doesFxaNeedReauthenticationEvent(boolean: Boolean) {
-        TelemetryEvent.create(Category.ACTION, Method.CHANGE, Object.FXA, Value.FXA_NEEDS_REAUTHENTICATION)
-            .extra(Extra.BOOLEAN, boolean.toString())
-            .queue()
+        recordTelemetryEvent(
+            "fxa_needs_reauthentication",
+            enabled = boolean.toString()
+        )
     }
 
     fun fxaPreboardingSignInButtonClickEvent() {
-        TelemetryEvent.create(Category.ACTION, Method.CLICK, Object.FXA, Value.FXA_PREBOARDING_SIGN_IN).queue()
+        recordTelemetryEvent("fxa_preboarding_sign_in_button_click", detail = Value.FXA_PREBOARDING_SIGN_IN)
     }
 
     fun fxaPreboardingDismissButtonClickEvent() {
-        TelemetryEvent.create(Category.ACTION, Method.CLICK, Object.FXA, Value.FXA_PREBOARDING_NOT_NOW).queue()
+        recordTelemetryEvent("fxa_preboarding_dismiss_button_click", detail = Value.FXA_PREBOARDING_NOT_NOW)
     }
 
     fun fxaLoggedInEvent() {
-        TelemetryEvent.create(Category.ACTION, Method.CHANGE, Object.FXA, Value.FXA_LOGGED_IN).queue()
+        recordTelemetryEvent("fxa_logged_in")
     }
 
     fun fxaLoggedOutEvent() {
-        TelemetryEvent.create(Category.ACTION, Method.CHANGE, Object.FXA, Value.FXA_LOGGED_OUT).queue()
+        recordTelemetryEvent("fxa_logged_out")
     }
 
     /**
      * User presses menu button to open overlay (i.e. if menu closes overlay, this isn't counted).
      */
     fun menuOpenedFromMenuButton() {
-        // Note: Method.USER_HIDE is no longer used and replaced by NO_ACTION_TAKEN (see telemetry docs).
-        TelemetryEvent.create(Category.ACTION, Method.USER_SHOW, Object.MENU).queue()
+        recordTelemetryEvent("menu_opened_from_button")
     }
 
     /**
@@ -336,7 +353,7 @@ open class TelemetryIntegration protected constructor(
      * See [MenuInteractionMonitor] kdoc for more information.
      */
     fun menuUnusedEvent() {
-        TelemetryEvent.create(Category.AGGREGATE, Method.NO_ACTION_TAKEN, Object.MENU).queue()
+        recordTelemetryEvent("menu_unused")
     }
 
     fun overlayClickEvent(
@@ -345,28 +362,32 @@ open class TelemetryIntegration protected constructor(
         isPinButtonChecked: Boolean,
         isDesktopModeButtonChecked: Boolean
     ) {
-        val telemetryValue = when (event) {
-            NavigationEvent.BACK -> Value.BACK
-            NavigationEvent.FORWARD -> Value.FORWARD
-            NavigationEvent.RELOAD -> Value.RELOAD
-            NavigationEvent.EXIT_FIREFOX -> Value.EXIT_FIREFOX
+        when (event) {
+            NavigationEvent.BACK -> recordTelemetryEvent("overlay_back_click")
+            NavigationEvent.FORWARD -> recordTelemetryEvent("overlay_forward_click")
+            NavigationEvent.RELOAD -> recordTelemetryEvent("overlay_reload_click")
+            NavigationEvent.EXIT_FIREFOX -> recordTelemetryEvent("overlay_exit_click")
 
             // For legacy reasons, turbo has different telemetry params so we special case it.
             // Pin has a similar state change so we model it after turbo.
             NavigationEvent.TURBO -> {
-                TelemetryEvent.create(Category.ACTION, Method.CHANGE, Object.TURBO_MODE, boolToOnOff(isTurboButtonChecked)).queue()
-                return
+                recordTelemetryEvent(
+                    "turbo_mode_change",
+                    enabled = boolToOnOff(isTurboButtonChecked)
+                )
             }
             NavigationEvent.PIN_ACTION -> {
-                TelemetryEvent.create(Category.ACTION, Method.CHANGE, Object.PIN_PAGE, boolToOnOff(isPinButtonChecked))
-                        .extra(Object.DESKTOP_MODE, boolToOnOff(isDesktopModeButtonChecked))
-                        .queue()
-                return
+                recordTelemetryEvent(
+                    "pin_page_change",
+                    enabled = boolToOnOff(isPinButtonChecked),
+                    detail = boolToOnOff(isDesktopModeButtonChecked)
+                )
             }
             NavigationEvent.DESKTOP_MODE -> {
-                TelemetryEvent.create(Category.ACTION, Method.CHANGE, Object.DESKTOP_MODE,
-                        boolToOnOff(isDesktopModeButtonChecked)).queue()
-                return
+                recordTelemetryEvent(
+                    "desktop_mode_change",
+                    enabled = boolToOnOff(isDesktopModeButtonChecked)
+                )
             }
 
             // Settings telemetry handled in a separate event
@@ -377,27 +398,22 @@ open class TelemetryIntegration protected constructor(
 
             NavigationEvent.FXA_BUTTON -> return // TODO: #2512 add telemetry for FxA login.
         }
-        TelemetryEvent.create(Category.ACTION, Method.CLICK, Object.MENU, telemetryValue).queue()
     }
 
     /** The browser goes back from a controller press. */
     fun browserBackControllerEvent() {
-        TelemetryEvent.create(Category.ACTION, Method.PAGE, Object.BROWSER, Value.BACK)
-                .extra(Extra.SOURCE, "controller")
-                .queue()
+        recordTelemetryEvent("browser_back_controller", source = "controller")
     }
 
     fun homeTileRemovedEvent(removedTile: ChannelTile) {
-        TelemetryEvent.create(Category.ACTION, Method.REMOVE, Object.HOME_TILE,
-                getTileTypeAsStringValue(removedTile)).queue()
+        recordTelemetryEvent(
+            "home_tile_removed",
+            detail = getTileTypeAsStringValue(removedTile)
+        )
     }
 
     fun mediaSessionEvent(eventType: MediaSessionEventType) {
-        val method = when (eventType) {
-            MediaSessionEventType.PLAY_PAUSE_BUTTON -> Method.CLICK
-            else -> Method.CLICK_OR_VOICE
-        }
-        TelemetryEvent.create(Category.ACTION, method, Object.MEDIA_SESSION, eventType.value).queue()
+        recordTelemetryEvent("media_session_event", detail = eventType.value)
     }
 
     private fun boolToOnOff(boolean: Boolean) = if (boolean) Value.ON else Value.OFF
@@ -410,16 +426,34 @@ open class TelemetryIntegration protected constructor(
         TileSource.MUSIC -> Value.TILE_BUNDLED
     }
 
-    fun youtubeCastEvent() = TelemetryEvent.create(Category.ACTION, Method.YOUTUBE_CAST, Object.BROWSER).queue()
+    fun youtubeCastEvent() = recordTelemetryEvent("youtube_cast")
 
     @UiThread
     fun saveRemoteControlInformation(context: Context, keyEvent: KeyEvent) =
             TelemetryRemoteControlTracker.saveRemoteControlInformation(context, keyEvent)
 
-    fun viewIntentEvent() = TelemetryEvent.create(Category.ACTION, Method.VIEW_INTENT, Object.APP).queue()
+    fun viewIntentEvent() = recordTelemetryEvent("view_intent")
 
     fun recordActiveExperiments(experimentNames: List<String>) {
-        DeprecatedTelemetryHolder.get().recordActiveExperiments(experimentNames)
+        val newActiveExperiments = experimentNames.toSet()
+
+        activeExperimentNames
+            .subtract(newActiveExperiments)
+            .forEach { experimentName ->
+                Glean.setExperimentInactive(experimentName.substringBefore(':'))
+            }
+
+        newActiveExperiments.forEach { experimentName ->
+            val experimentId = experimentName.substringBefore(':')
+            val branch = experimentName.substringAfter(':', "active")
+            Glean.setExperimentActive(
+                experimentId = experimentId,
+                branch = branch,
+                extra = emptyMap()
+            )
+        }
+
+        activeExperimentNames = newActiveExperiments
     }
 
     fun receivedTabEvent(metadata: FxaReceivedTab.Metadata) {
@@ -433,10 +467,11 @@ open class TelemetryIntegration protected constructor(
             DeviceType.UNKNOWN -> ReceivedTabDeviceType.UNKNOWN
         }.extra
 
-        TelemetryEvent.create(Category.ACTION, Method.RECEIVED_TAB, Object.FXA)
-            .extra(Extra.DEVICE_TYPE, internalDeviceType)
-            .extra(Extra.TOTAL, metadata.receivedUrlCount.toString())
-            .queue()
+        recordTelemetryEvent(
+            "received_tab",
+            deviceType = internalDeviceType,
+            total = metadata.receivedUrlCount.toString()
+        )
     }
 }
 
@@ -471,7 +506,7 @@ private object TelemetryHomeTileUniqueClickPerSessionCounter {
 
     fun countTile(context: Context, tile: ChannelTile) {
         Assert.isUiThread()
-        if (!DeprecatedTelemetryHolder.get().configuration.isCollectionEnabled) { return }
+        if (context.serviceLocator.settingsRepo.dataCollectionEnabled.value != true) { return }
 
         val sharedPrefs = getSharedPrefs(context)
         val clickedTileIDs = (sharedPrefs.getStringSet(KEY_CLICKED_HOME_TILE_IDS_PER_SESSION, null)
@@ -509,7 +544,7 @@ private object TelemetryRemoteControlTracker {
 
     fun saveRemoteControlInformation(context: Context, keyEvent: KeyEvent) {
         Assert.isUiThread()
-        if (!DeprecatedTelemetryHolder.get().configuration.isCollectionEnabled) { return }
+        if (context.serviceLocator.settingsRepo.dataCollectionEnabled.value != true) { return }
 
         val remoteName = InputDevice.getDevice(keyEvent.deviceId)?.name ?: "null"
         val sharedPrefs = getSharedPrefs(context)

@@ -21,7 +21,9 @@ import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.rxkotlin.addTo
 import io.sentry.Sentry
-import mozilla.components.browser.session.Session
+import mozilla.components.browser.state.action.TabListAction
+import mozilla.components.browser.state.selector.selectedTab
+import mozilla.components.browser.state.state.TabSessionState
 import mozilla.components.concept.engine.EngineView
 import mozilla.components.support.base.observer.Consumable
 import mozilla.components.support.utils.toSafeIntent
@@ -42,6 +44,7 @@ import org.mozilla.tv.firefox.utils.Settings
 import org.mozilla.tv.firefox.utils.URLs
 import org.mozilla.tv.firefox.utils.ViewUtils
 import org.mozilla.tv.firefox.utils.publicsuffix.PublicSuffix
+import org.mozilla.tv.firefox.webrender.NullSession
 import org.mozilla.tv.firefox.webrender.VideoVoiceCommandMediaSession
 import org.mozilla.tv.firefox.widget.InlineAutocompleteEditText
 
@@ -67,6 +70,11 @@ class MainActivity : LocaleAwareAppCompatActivity(), OnUrlEnteredListener, Media
         // goes through onCreate.
         super.onCreate(savedInstanceState)
 
+        // Register this Activity as the current visual context BEFORE any webRenderComponents
+        // access, because lazy engine initialization calls GeckoRuntime.create() which may need
+        // a visual Context for WindowManager on API 31+.
+        (application as FirefoxApplication).visibilityLifeCycleCallback.currentActivity = this
+
         PublicSuffix.init(this) // Used by Pocket Video feed & custom home tiles.
         initMediaSession()
 
@@ -86,7 +94,7 @@ class MainActivity : LocaleAwareAppCompatActivity(), OnUrlEnteredListener, Media
 
         val session = getOrCreateSession(intentData)
 
-        webRenderComponents.sessionManager.getOrCreateEngineSession().resetView(this@MainActivity)
+        // resetView() removed in v72+. SessionFeature handles view management.
 
         val screenController = serviceLocator.screenController
         screenController.setUpFragmentsForNewSession(supportFragmentManager, session)
@@ -96,7 +104,13 @@ class MainActivity : LocaleAwareAppCompatActivity(), OnUrlEnteredListener, Media
                 if (it != null) {
                     screenController.showBrowserScreenForUrl(supportFragmentManager, it.url)
                 } else {
-                    screenController.showBrowserScreenForCurrentSession(supportFragmentManager, session)
+                    if (webRenderComponents.store.state.tabs.isEmpty()) {
+                        val newTab = NullSession.create()
+                        webRenderComponents.store.dispatch(TabListAction.AddTabAction(newTab))
+                        screenController.showBrowserScreenForCurrentSession(supportFragmentManager, newTab)
+                    } else {
+                        screenController.showBrowserScreenForCurrentSession(supportFragmentManager, session)
+                    }
                 }
                 true
             }
@@ -126,18 +140,25 @@ class MainActivity : LocaleAwareAppCompatActivity(), OnUrlEnteredListener, Media
     /**
      * If a new [Session] is created, this also adds it to the SessionManager and selects it
      */
-    private fun getOrCreateSession(intentData: ValidatedIntentData?): Session {
-        return webRenderComponents.sessionManager.selectedSession
-            ?: Session(
-                initialUrl = intentData?.url ?: URLs.APP_URL_HOME
-            ).also { webRenderComponents.sessionManager.add(it, selected = true) }
+    private fun getOrCreateSession(intentData: ValidatedIntentData?): TabSessionState {
+        return webRenderComponents.store.state.selectedTab
+            ?: NullSession.create().also {
+                val newTab = TabSessionState(
+                    id = "initial-session",
+                    content = mozilla.components.browser.state.state.ContentState(
+                        url = intentData?.url ?: URLs.APP_URL_HOME
+                    )
+                )
+                webRenderComponents.store.dispatch(TabListAction.AddTabAction(newTab, select = true))
+                return newTab
+            }
     }
 
     override fun onNewIntent(unsafeIntent: Intent) {
         super.onNewIntent(unsafeIntent)
 
-        if (serviceLocator.sessionManager.selectedSession == null) {
-            Sentry.capture(IllegalStateException("onNewIntent is called with null selectedSession"))
+        if (serviceLocator.store.state.selectedTabId == null) {
+            Sentry.capture(IllegalStateException("onNewIntent is called with null selectedTab"))
             return
         }
 
@@ -219,7 +240,7 @@ class MainActivity : LocaleAwareAppCompatActivity(), OnUrlEnteredListener, Media
     }
 
     override fun onDestroy() {
-        if (webRenderComponents.sessionManager.size > 0) {
+        if (webRenderComponents.store.state.tabs.isNotEmpty()) {
             /**
              * This is to clear the previously assigned WebView instance from EngineView (which
              * uses ActivityContext) when it's destroyed via [EngineViewCache.onDestroy].
@@ -235,8 +256,7 @@ class MainActivity : LocaleAwareAppCompatActivity(), OnUrlEnteredListener, Media
              *
              * See [EngineSession.resetView] for additional context
              */
-            @Suppress("DEPRECATION")
-            webRenderComponents.sessionManager.getEngineSession()?.resetView(applicationContext)
+            // resetView() removed in v72+. SessionFeature handles view management.
         }
         super.onDestroy()
     }
@@ -250,10 +270,16 @@ class MainActivity : LocaleAwareAppCompatActivity(), OnUrlEnteredListener, Media
     }
 
     override fun onBackPressed() {
-        if (serviceLocator.screenController.handleBack(supportFragmentManager)) return
+        Log.d("MainActivity", "onBackPressed called")
+        val handled = serviceLocator.screenController.handleBack(supportFragmentManager)
+        Log.d("MainActivity", "handleBack returned: $handled")
+        if (handled) return
 
         // If you're here that means there's nothing else in the fragment backstack; therefore, clear session
-        webRenderComponents.sessionManager.remove()
+        Log.d("MainActivity", "Exiting app - removing tab and calling super.onBackPressed()")
+        webRenderComponents.store.state.selectedTabId?.let {
+            webRenderComponents.store.dispatch(TabListAction.RemoveTabAction(it))
+        }
 
         super.onBackPressed()
     }
@@ -286,8 +312,12 @@ class MainActivity : LocaleAwareAppCompatActivity(), OnUrlEnteredListener, Media
         // Note: on device, back presses emit one KEYCODE_BACK. On emulator, they
         // emit one KEYCODE_BACK **AND** one KEYCODE_DEL. We short on both to make
         // code paths consistent between the two.
-        if (event.keyCode == KeyEvent.KEYCODE_BACK ||
-                event.keyCode == KeyEvent.KEYCODE_DEL) return super.dispatchKeyEvent(event)
+        if (event.keyCode == KeyEvent.KEYCODE_BACK) {
+            if (event.action == KeyEvent.ACTION_DOWN) onBackPressed()
+            return true
+        }
+
+        if (event.keyCode == KeyEvent.KEYCODE_DEL) return true
 
         val fragmentManager = supportFragmentManager
 

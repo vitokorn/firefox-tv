@@ -7,14 +7,13 @@ package org.mozilla.tv.firefox.framework
 import android.view.accessibility.AccessibilityManager
 import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
-import androidx.annotation.VisibleForTesting.PRIVATE
 import io.reactivex.Observable
 import io.reactivex.subjects.BehaviorSubject
 
 /**
  * A model to hold state related to the Android framework.
  */
-class FrameworkRepo @VisibleForTesting(otherwise = PRIVATE) constructor() {
+class FrameworkRepo @VisibleForTesting constructor() {
 
     private var wasInitCalled = false
 

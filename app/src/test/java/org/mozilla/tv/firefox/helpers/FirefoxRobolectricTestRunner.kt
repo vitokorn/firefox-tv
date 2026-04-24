@@ -4,9 +4,6 @@
 
 package org.mozilla.tv.firefox.helpers
 
-import org.mozilla.tv.firefox.helpers.shadows.ShadowADM
-import org.mozilla.tv.firefox.helpers.shadows.ShadowADMMessageHandlerBase
-import org.mozilla.tv.firefox.helpers.shadows.ShadowADMMessageReceiver
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -18,13 +15,6 @@ class FirefoxRobolectricTestRunner(testClass: Class<*>) : RobolectricTestRunner(
 
     override fun buildGlobalConfig(): Config {
         val defaultConfig = super.buildGlobalConfig()
-
-        // See [ShadowADMMessageReceiver] and [ShadowADMMessageHandlerBase] for reason why these shadows are needed
-        val shadows = defaultConfig.shadows +
-            arrayOf(ShadowADMMessageHandlerBase::class, ShadowADMMessageReceiver::class, ShadowADM::class)
-
-        return Config.Builder(defaultConfig)
-            .setShadows(shadows.map { it.java }.toTypedArray())
-            .build()
+        return Config.Builder(defaultConfig).build()
     }
 }

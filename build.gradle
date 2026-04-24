@@ -7,9 +7,11 @@ import org.mozilla.gradle.Dependencies
 buildscript {
     ext.androidx_version = '1.0.0'
     ext.architecture_components_version = '2.0.0'
+    ext.lifecycle_version = '2.5.1'
     ext.kotlin_version = '1.9.22'
     ext.coroutines_version = '1.7.3'
-    ext.moz_components_version = '56.0.0'
+    ext.moz_components_version = '128.0'
+    ext.glean_version = '60.4.0'
     ext.androidx_work_version = '2.7.1'
     ext.adm_version = '1.0.1' // Also update proguard rule if this gets updated
     ext.oss_licenses_version = '17.0.0'
@@ -51,6 +53,7 @@ buildscript {
 
         classpath 'org.ajoberstar:grgit:1.5.0'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath "org.mozilla.telemetry:glean-gradle-plugin:$glean_version"
 
         classpath 'com.google.android.gms:oss-licenses-plugin:0.10.6'
 

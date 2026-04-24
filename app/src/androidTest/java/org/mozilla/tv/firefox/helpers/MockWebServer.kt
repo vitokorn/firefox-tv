@@ -52,7 +52,7 @@ class AndroidAssetDispatcher : Dispatcher() {
                 .getResourcesForApplication(testContextPackage)
                 .assets
         val assetContents = try {
-            val pathNoLeadingSlash = request.path.drop(1)
+            val pathNoLeadingSlash = request.path!!.drop(1)
             assetManager.open(pathNoLeadingSlash).use { inputStream ->
                 inputStream.bufferedReader().use { it.readText() }
             }

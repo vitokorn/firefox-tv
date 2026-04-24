@@ -7,11 +7,7 @@ package org.mozilla.tv.firefox.ext
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.Transformations
-
-fun <T, U> LiveData<T>.map(mapper: (T) -> U): LiveData<U> {
-    return Transformations.map(this, mapper)
-}
+import androidx.lifecycle.map
 
 fun <T> LiveData<T>.doOnEach(action: (T?) -> Unit): LiveData<T> {
     return this.map {

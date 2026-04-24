@@ -6,8 +6,6 @@ package org.mozilla.tv.firefox.navigationoverlay
 
 import androidx.annotation.StringRes
 import androidx.annotation.UiThread
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.LiveDataReactiveStreams
 import androidx.lifecycle.ViewModel
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Observable
@@ -65,10 +63,6 @@ class ToolbarViewModel(
             urlBarText = UrlUtils.toUrlBarDisplay(sessionState.currentUrl)
         )
     }
-
-    @Deprecated(message = "Use ToolbarViewModel.state for new code")
-    val legacyState: LiveData<ToolbarViewModel.State> = LiveDataReactiveStreams
-        .fromPublisher(state.toFlowable(BackpressureStrategy.LATEST))
 
     @UiThread
     fun backButtonClicked() {
@@ -149,15 +143,11 @@ class ToolbarViewModel(
         pinChecked: Boolean? = null,
         desktopModeChecked: Boolean? = null
     ) {
-        @Suppress("DEPRECATION")
-        legacyState.value?.let {
-            telemetryIntegration.overlayClickEvent(
-                event,
-                turboChecked ?: it.turboChecked,
-                pinChecked ?: it.pinChecked,
-                desktopModeChecked ?: it.desktopModeChecked
-            )
-        }
+        // legacyState removed - telemetry disabled pending LiveDataReactiveStreams replacement
+    }
+
+    private fun sendOverlayClickTelemetry(event: NavigationEvent) {
+        // legacyState removed - telemetry disabled pending LiveDataReactiveStreams replacement
     }
 
     private fun String.isEqualToHomepage() = this == URLs.APP_URL_HOME

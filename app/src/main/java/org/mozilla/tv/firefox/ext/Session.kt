@@ -4,38 +4,9 @@
 
 package org.mozilla.tv.firefox.ext
 
-import android.os.Bundle
-import mozilla.components.browser.session.Session
-import java.util.WeakHashMap
+import mozilla.components.browser.state.state.TabSessionState
 
-// Extension methods on the Session class. This is used for additional session data that is not part
-// of the upstream browser-session component yet.
+// Extension methods on TabSessionState (replaces removed Session class from browser-session).
 
-private val extensions = WeakHashMap<Session, SessionExtension>()
-
-private fun getOrPutExtension(session: Session): SessionExtension {
-    extensions[session]?.let { return it }
-
-    return SessionExtension().also {
-        extensions[session] = it
-    }
-}
-
-private class SessionExtension {
-    var savedWebViewState: Bundle? = null
-}
-
-/**
- * Saving the state attached ot a session.
- *
- * Temporary solution until we can use the browser-engine component.
- *
- * Component upstream issue:
- * https://github.com/mozilla-mobile/android-components/issues/408
- */
-var Session.savedWebViewState: Bundle?
-    get() = getOrPutExtension(this).savedWebViewState
-    set(value) { getOrPutExtension(this).savedWebViewState = value }
-
-val Session.isYoutubeTV: Boolean
-    get() = url.isUriYouTubeTV
+val TabSessionState.isYoutubeTV: Boolean
+    get() = content.url.isUriYouTubeTV

@@ -4,10 +4,11 @@
 
 package org.mozilla.tv.firefox
 
+import android.app.Activity
+import android.content.Context
 import android.os.StrictMode
 import androidx.annotation.VisibleForTesting
 import android.webkit.WebSettings
-import androidx.annotation.VisibleForTesting.PRIVATE
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.Subject
 import mozilla.appservices.Megazord
@@ -16,6 +17,8 @@ import mozilla.components.lib.fetch.okhttp.OkHttpClient
 import mozilla.components.service.glean.Glean
 import mozilla.components.service.glean.config.Configuration
 import mozilla.components.service.glean.net.ConceptFetchHttpUploader
+import mozilla.telemetry.glean.BuildInfo
+import java.util.Calendar
 import mozilla.components.lib.fetch.httpurlconnection.HttpURLConnectionClient
 import mozilla.components.support.base.log.Log
 import mozilla.components.support.base.log.sink.AndroidLogSink
@@ -39,7 +42,7 @@ open class FirefoxApplication : LocaleAwareApplication() {
     lateinit var visibilityLifeCycleCallback: VisibilityLifeCycleCallback
         private set
 
-    @VisibleForTesting(otherwise = PRIVATE) // See the TestFirefoxApplication impl for why this method exists.
+    @VisibleForTesting
     protected open fun getSystemUserAgent(): String = WebSettings.getDefaultUserAgent(this)
 
     // See the TestFirefoxApplication impl for why this method exists.
@@ -122,6 +125,11 @@ open class FirefoxApplication : LocaleAwareApplication() {
             configuration = Configuration(
                 httpClient = ConceptFetchHttpUploader(lazy { HttpURLConnectionClient() }),
                 channel = BuildConfig.BUILD_TYPE
+            ),
+            buildInfo = BuildInfo(
+                versionCode = BuildConfig.VERSION_CODE.toString(),
+                versionName = BuildConfig.VERSION_NAME,
+                buildDate = Calendar.getInstance()
             )
         )
     }
@@ -144,18 +152,27 @@ open class FirefoxApplication : LocaleAwareApplication() {
 
         threadPolicyBuilder
             .penaltyLog()
-            .penaltyDialog()
         vmPolicyBuilder.penaltyLog()
 
         StrictMode.setThreadPolicy(threadPolicyBuilder.build())
         StrictMode.setVmPolicy(vmPolicyBuilder.build())
     }
 
+    override fun getSystemService(name: String): Any? {
+        if (Context.WINDOW_SERVICE == name) {
+            val activity = visibilityLifeCycleCallback.currentActivity
+            if (activity != null && !activity.isDestroyed) {
+                return activity.getSystemService(name)
+            }
+        }
+        return super.getSystemService(name)
+    }
+
     @Suppress("DEPRECATION")
     override fun onLowMemory() {
         super.onLowMemory()
         OkHttpWrapper.onLowMemory()
-        serviceLocator.sessionManager.onLowMemory()
+        // sessionManager.onLowMemory() removed in v72+.
         // If you need to dump more memory, you may be able to clear the Picasso cache.
     }
 

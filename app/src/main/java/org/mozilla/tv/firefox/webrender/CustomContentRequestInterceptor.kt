@@ -10,6 +10,7 @@ import android.os.Handler
 import android.os.Looper
 import androidx.core.content.ContextCompat.startActivity
 import com.google.android.gms.oss.licenses.OssLicensesMenuActivity
+import android.util.Base64
 import mozilla.components.browser.errorpages.ErrorType
 import mozilla.components.concept.engine.EngineSession
 import mozilla.components.concept.engine.request.RequestInterceptor
@@ -73,7 +74,8 @@ class CustomContentRequestInterceptor(
     ): RequestInterceptor.ErrorResponse? {
         return uri?.let {
             val data = ErrorPage.loadErrorPage(context, uri, errorType)
-            RequestInterceptor.ErrorResponse.Content(data, uri)
+            val encodedData = Base64.encodeToString(data.toByteArray(Charsets.UTF_8), Base64.NO_PADDING)
+            RequestInterceptor.ErrorResponse("data:text/html;base64,$encodedData")
         }
     }
 }

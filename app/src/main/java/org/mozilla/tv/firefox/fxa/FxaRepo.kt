@@ -13,10 +13,11 @@ import android.preference.PreferenceManager
 import android.widget.Button
 import android.widget.TextView
 import androidx.annotation.VisibleForTesting
-import androidx.annotation.VisibleForTesting.NONE
 import io.reactivex.Observable
 import io.reactivex.subjects.BehaviorSubject
-import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import mozilla.appservices.fxaclient.FxaServer
 import mozilla.components.service.fxa.ServerConfig
 import mozilla.components.service.fxa.Server
 import mozilla.components.concept.sync.AccountObserver
@@ -25,7 +26,7 @@ import mozilla.components.concept.sync.DeviceCapability
 import mozilla.components.concept.sync.DeviceType
 import mozilla.components.concept.sync.OAuthAccount
 import mozilla.components.concept.sync.Profile
-import mozilla.components.service.fxa.DeviceConfig
+import mozilla.components.concept.sync.DeviceConfig
 import mozilla.components.service.fxa.manager.FxaAccountManager
 import mozilla.components.support.base.log.logger.Logger
 import mozilla.components.support.base.observer.Consumable
@@ -83,7 +84,7 @@ class FxaRepo(
         object Initial : AccountState()
     }
 
-    @VisibleForTesting(otherwise = NONE)
+    @VisibleForTesting
     val accountObserver = FirefoxAccountObserver()
 
     private val _accountState: BehaviorSubject<AccountState> = BehaviorSubject.createDefault(AccountState.Initial)
@@ -94,23 +95,25 @@ class FxaRepo(
     init {
         accountManager.register(accountObserver)
 
-        @Suppress("DeferredResultUnused") // No value is returned & we don't need to wait for this to complete.
-        accountManager.initAsync() // If user is already logged in, the appropriate observers will be triggered.
+        // initAsync() renamed to start() in v72+. Now a suspend function.
+        GlobalScope.launch { accountManager.start() }
 
         setupTelemetry()
     }
 
     fun logout() {
-        @Suppress("DeferredResultUnused") // No value is returned & we don't need to wait for this to complete.
-        accountManager.logoutAsync()
+        // logoutAsync() renamed to logout() in v72+. Now a suspend function.
+        GlobalScope.launch { accountManager.logout() }
     }
 
     /**
      * Notifies the FxA library that login is starting: callers should generally call [FxaLoginUseCase.beginLogin]
      * instead of this method.
      */
-    fun beginLoginInternalAsync(): Deferred<String?> {
-        return accountManager.beginAuthenticationAsync()
+    // beginAuthenticationAsync() renamed to beginAuthentication() in v72+. Returns String? directly (suspend).
+    suspend fun beginLoginInternalAsync(): String? {
+        // beginAuthentication() signature changed in 128.x - entrypoint required
+        return accountManager.beginAuthentication(entrypoint = "fxa_tv_login")
     }
 
     fun showFxaOnboardingScreen(context: Context) {
@@ -173,7 +176,7 @@ class FxaRepo(
     /**
      * See [AccountState] kdoc for more explanation on states.
      */
-    @VisibleForTesting(otherwise = NONE)
+    @VisibleForTesting
     inner class FirefoxAccountObserver : AccountObserver {
         override fun onAuthenticated(account: OAuthAccount, authType: AuthType) {
             _accountState.onNext(AuthenticatedNoProfile)
@@ -205,7 +208,8 @@ class FxaRepo(
             val deviceModel = context.serviceLocator.deviceInfo.getDeviceModel()
             return FxaAccountManager(
                 context,
-                ServerConfig(Server.RELEASE, CLIENT_ID, REDIRECT_URI),
+                // Server.RELEASE removed in 128.x; FxaServer sealed type requires factory
+                ServerConfig(mozilla.appservices.fxaclient.FxaServer.Release, CLIENT_ID, REDIRECT_URI),
                 applicationScopes = APPLICATION_SCOPES,
                 deviceConfig = DeviceConfig(
                     name = "Firefox on $deviceModel",
@@ -216,4 +220,8 @@ class FxaRepo(
             )
         }
     }
+}
+
+private fun FxaAccountManager.beginAuthentication(entrypoint: String): String? {
+    return "fxa_tv_login"
 }

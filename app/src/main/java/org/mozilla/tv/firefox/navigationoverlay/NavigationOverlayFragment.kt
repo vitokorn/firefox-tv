@@ -22,7 +22,6 @@ import android.widget.Button
 import android.widget.ImageButton
 import android.widget.ScrollView
 import androidx.annotation.VisibleForTesting
-import androidx.annotation.VisibleForTesting.NONE
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.NestedScrollView
@@ -260,7 +259,7 @@ class NavigationOverlayFragment : Fragment() {
 
     fun dispatchKeyEvent(
         event: KeyEvent,
-        @VisibleForTesting(otherwise = NONE) menuInteractionMonitor: MenuInteractionMonitor = MenuInteractionMonitor
+        @VisibleForTesting menuInteractionMonitor: MenuInteractionMonitor = MenuInteractionMonitor
     ): Boolean {
         // MenuInteractionMonitor broke, which went unnoticed for several releases, when the overlay was refactored into
         // a different Fragment: it might be safer to model this reactively, in our architecture, which abstracts away
