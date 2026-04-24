@@ -129,9 +129,9 @@ Major changes to investigate:
 ## Migration Tasks
 
 ### Phase A: Dependencies & Build (No Code Changes)
-- [ ] Update `moz_components_version` to 128.x in root `build.gradle`
-- [ ] Update GeckoView to matching 128.x in `app/build.gradle`
-- [ ] Add Compose dependencies
+- [x] Update `moz_components_version` to 128.x in root `build.gradle`
+- [x] Update GeckoView to matching 128.x in `app/build.gradle`
+- [x] Add Compose dependencies
 - [ ] Enable `buildFeatures.compose`
 - [ ] Add `activity-compose` dependency
 - [ ] Run `:app:compileSystemDebugKotlin` — expect many errors
@@ -139,22 +139,25 @@ Major changes to investigate:
 - [ ] Document all compilation errors by file
 
 ### Phase B: Core API Migration (Before Compose)
-- [ ] Fix `browser-session` → `browser-state` migration
-  - [ ] Replace `SessionManager` with `BrowserStore`
-  - [ ] Update `SessionRepo` to use `TabSessionState`
-  - [ ] Update `WebRenderComponents` to use new store pattern
-- [ ] Fix `feature-session` API changes
-  - [ ] `SessionFeature` constructor
+- [x] Fix `browser-session` → `browser-state` migration
+  - [x] Replace `SessionManager` with `BrowserStore`
+  - [x] Update `SessionRepo` to use `TabSessionState`
+  - [x] Update `WebRenderComponents` to use new store pattern
+- [x] Fix `feature-session` API changes
+  - [x] `SessionFeature` constructor (API unchanged - still requires goBack/goForward)
   - [ ] `EngineView` lifecycle
-- [ ] Fix `browser-engine-gecko` (128 flavor)
-  - [ ] `GeckoEngine` initialization
-  - [ ] Settings/Preferences API
-- [ ] Fix `browser-engine-system` (system flavor)
-  - [ ] Check for API changes
-- [ ] Fix `service-firefox-accounts`
-  - [ ] `FxaAccountManager` changes
-  - [ ] Authentication flow
-- [ ] Fix any other component API breaks
+- [x] Fix `browser-engine-gecko` (128 flavor)
+  - [x] `GeckoEngine` initialization
+  - [x] Settings/Preferences API (uses new TrackingProtectionPolicy API)
+- [x] Fix `browser-engine-system` (system flavor)
+  - [x] API changes verified (correct)
+- [x] Fix `service-firefox-accounts`
+  - [x] `FxaAccountManager` changes (async methods updated)
+  - [x] Authentication flow (entrypoint uses FxAEntryPoint type)
+- [x] Fix any other component API breaks
+  - [x] Search Engine API migration (stubbed - browser-search removed in 128.x)
+  - [x] Session reference cleanup (already using TabSessionState)
+  - [x] SessionObserverHelper implementation (using BrowserStore)
 - [ ] **Verify build compiles** before adding Compose
 
 ### Phase C: Compose Foundation

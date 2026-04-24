@@ -43,7 +43,16 @@ open class FirefoxApplication : LocaleAwareApplication() {
         private set
 
     @VisibleForTesting
-    protected open fun getSystemUserAgent(): String = WebSettings.getDefaultUserAgent(this)
+    protected open fun getSystemUserAgent(): String {
+        // For gecko builds, use a modern Firefox User-Agent instead of system WebView UA
+        // to avoid being blocked by sites that check for old browser versions
+        return if (BuildConstants.isGeckoBuild) {
+            // Modern Firefox 128.x User-Agent
+            "Mozilla/5.0 (Android ${android.os.Build.VERSION.RELEASE}; Mobile; rv:128.0) Gecko/128.0 Firefox/128.0"
+        } else {
+            WebSettings.getDefaultUserAgent(this)
+        }
+    }
 
     // See the TestFirefoxApplication impl for why this method exists.
     open fun getEngineViewVersion(): EngineVersion = webRenderComponents.engine.version
