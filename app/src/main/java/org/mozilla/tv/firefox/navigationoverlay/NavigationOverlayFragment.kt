@@ -68,7 +68,7 @@ private val uiHandler = Handler(Looper.getMainLooper())
 
 enum class NavigationEvent {
     BACK, FORWARD, RELOAD, LOAD_URL, LOAD_TILE, TURBO, PIN_ACTION, DESKTOP_MODE, EXIT_FIREFOX, FXA_BUTTON,
-    SETTINGS_DATA_COLLECTION, SETTINGS_CLEAR_COOKIES;
+    SETTINGS_DATA_COLLECTION, SETTINGS_CLEAR_COOKIES, SETTINGS_ABOUT;
 
     companion object {
         fun fromViewClick(viewId: Int?) = when (viewId) {
@@ -121,6 +121,9 @@ class NavigationOverlayFragment : Fragment() {
             }
             NavigationEvent.FXA_BUTTON -> {
                 navigationOverlayViewModel.fxaButtonClicked(fragmentManager!!)
+            }
+            NavigationEvent.SETTINGS_ABOUT -> {
+                serviceLocator.screenController.showSettingsScreen(fragmentManager!!, SettingsScreen.ABOUT)
             }
 
             NavigationEvent.TURBO, NavigationEvent.PIN_ACTION, NavigationEvent.DESKTOP_MODE, NavigationEvent.BACK,
@@ -460,6 +463,8 @@ class NavigationOverlayFragment : Fragment() {
                         SettingsScreen.DATA_COLLECTION -> NavigationEvent.SETTINGS_DATA_COLLECTION
                         SettingsScreen.CLEAR_COOKIES -> NavigationEvent.SETTINGS_CLEAR_COOKIES
                         SettingsScreen.FXA_PROFILE -> NavigationEvent.FXA_BUTTON
+                        SettingsScreen.ABOUT -> NavigationEvent.SETTINGS_ABOUT
+                        else -> NavigationEvent.SETTINGS_DATA_COLLECTION
                     }
                     onNavigationEvent.invoke(navigationEvent, null, null)
                 }

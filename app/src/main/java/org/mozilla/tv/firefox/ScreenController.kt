@@ -97,6 +97,8 @@ class ScreenController(private val sessionRepo: SessionRepo) {
             SettingsScreen.DATA_COLLECTION -> Transition.ADD_SETTINGS_DATA
             SettingsScreen.CLEAR_COOKIES -> Transition.ADD_SETTINGS_COOKIES
             SettingsScreen.FXA_PROFILE -> Transition.ADD_FXA_PROFILE
+            SettingsScreen.ABOUT -> Transition.ADD_SETTINGS_ABOUT
+            else -> Transition.ADD_SETTINGS_DATA
         }
         handleTransitionAndUpdateActiveScreen(fragmentManager, transition)
     }
@@ -233,6 +235,14 @@ class ScreenController(private val sessionRepo: SessionRepo) {
                 fragmentManager.beginTransaction()
                     .hide(fragmentManager.navigationOverlayFragment())
                     .add(R.id.container_settings, SettingsFragment.newInstance(SettingsScreen.CLEAR_COOKIES),
+                            SettingsFragment.FRAGMENT_TAG)
+                    .commit()
+            }
+            Transition.ADD_SETTINGS_ABOUT -> {
+                _currentActiveScreen.onNext(ActiveScreen.SETTINGS)
+                fragmentManager.beginTransaction()
+                    .hide(fragmentManager.navigationOverlayFragment())
+                    .add(R.id.container_settings, SettingsFragment.newInstance(SettingsScreen.ABOUT),
                             SettingsFragment.FRAGMENT_TAG)
                     .commit()
             }

@@ -4,11 +4,14 @@
 
 package org.mozilla.tv.firefox.settings
 
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.text.method.LinkMovementMethod
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import androidx.core.text.HtmlCompat
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
@@ -26,9 +29,12 @@ import org.mozilla.tv.firefox.channels.SettingsTile
 import org.mozilla.tv.firefox.ext.serviceLocator
 import org.mozilla.tv.firefox.fxa.FxaRepo
 import org.mozilla.tv.firefox.telemetry.TelemetryIntegration
+import org.mozilla.tv.firefox.utils.BuildConstants
+import org.mozilla.tv.firefox.utils.HtmlLoader
 import org.mozilla.tv.firefox.utils.PicassoWrapper
 import org.mozilla.tv.firefox.utils.RoundCornerTransformation
 import org.mozilla.tv.firefox.utils.ServiceLocator
+import org.mozilla.tv.firefox.utils.URLs
 
 const val KEY_SETTINGS_TYPE = "KEY_SETTINGS_TYPE"
 
@@ -50,6 +56,7 @@ class SettingsFragment : Fragment() {
             SettingsScreen.DATA_COLLECTION -> setupDataCollectionScreen(inflater, container, settingsVM)
             SettingsScreen.CLEAR_COOKIES -> setupClearCookiesScreen(inflater, container, settingsVM)
             SettingsScreen.FXA_PROFILE -> setupFxaProfileScreen(inflater, container)
+            SettingsScreen.ABOUT -> setupAboutScreen(inflater, container)
             else -> {
                 Sentry.capture(IllegalStateException("Unexpected Settings type received: $type"))
                 return container!!
@@ -187,6 +194,59 @@ class SettingsFragment : Fragment() {
                     PicassoWrapper.client.load(R.drawable.ic_default_avatar).into(avatarImage)
                 }
         )
+    }
+
+    private fun setupAboutScreen(inflater: LayoutInflater, container: ViewGroup?): View {
+        val view = inflater.inflate(R.layout.settings_screen_about, container, false)
+
+        // Set up back button
+        view.findViewById<ImageButton>(R.id.backButton).setOnClickListener {
+            requireActivity().onBackPressed()
+        }
+
+        // Get app name and version
+        val context = requireContext()
+        val appNameExtended = context.getString(R.string.app_name_extended_fire)
+        var aboutVersion = ""
+        try {
+            val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            val versionName = packageInfo.versionName
+            val engineVersion = BuildConstants.getEngineVersion(context)
+            aboutVersion = "$versionName (Build #$engineVersion)"
+        } catch (e: PackageManager.NameNotFoundException) {
+            // Nothing to do if we can't find the package name.
+        }
+
+        // Set app name and version
+        view.findViewById<TextView>(R.id.appNameVersion).text = "$appNameExtended $aboutVersion"
+
+        // Get app name for content strings
+        val appName = context.getString(R.string.app_name)
+
+        // Set localized rights content with proper format arguments and HTML links
+        val mplUrl = "https://www.mozilla.org/en-US/MPL/"
+        val trademarkPolicyUrl = "https://www.mozilla.org/foundation/trademarks/policy/"
+        val trackingProtectionUrl = "https://wiki.mozilla.org/Security/Tracking_protection#Lists"
+
+        view.findViewById<TextView>(R.id.rightsContent1).text = HtmlCompat.fromHtml(
+            context.getString(R.string.your_rights_content1, appName), HtmlCompat.FROM_HTML_MODE_LEGACY)
+        view.findViewById<TextView>(R.id.rightsContent2).text = HtmlCompat.fromHtml(
+            context.getString(R.string.your_rights_content2, appName, mplUrl), HtmlCompat.FROM_HTML_MODE_LEGACY)
+        view.findViewById<TextView>(R.id.rightsContent3).text = HtmlCompat.fromHtml(
+            context.getString(R.string.your_rights_content3, appName, trademarkPolicyUrl), HtmlCompat.FROM_HTML_MODE_LEGACY)
+        view.findViewById<TextView>(R.id.rightsContent4).text = HtmlCompat.fromHtml(
+            context.getString(R.string.your_rights_content4, appName, URLs.URL_LICENSES), HtmlCompat.FROM_HTML_MODE_LEGACY)
+        view.findViewById<TextView>(R.id.rightsContent5).text = HtmlCompat.fromHtml(
+            context.getString(R.string.your_rights_content5, appName, URLs.URL_GPL, trackingProtectionUrl), HtmlCompat.FROM_HTML_MODE_LEGACY)
+
+        // Enable link clicking in TextViews
+        view.findViewById<TextView>(R.id.rightsContent1).movementMethod = LinkMovementMethod.getInstance()
+        view.findViewById<TextView>(R.id.rightsContent2).movementMethod = LinkMovementMethod.getInstance()
+        view.findViewById<TextView>(R.id.rightsContent3).movementMethod = LinkMovementMethod.getInstance()
+        view.findViewById<TextView>(R.id.rightsContent4).movementMethod = LinkMovementMethod.getInstance()
+        view.findViewById<TextView>(R.id.rightsContent5).movementMethod = LinkMovementMethod.getInstance()
+
+        return view
     }
 
     override fun onDestroyView() {

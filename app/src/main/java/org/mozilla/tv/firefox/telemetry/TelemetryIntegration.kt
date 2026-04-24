@@ -285,7 +285,7 @@ open class TelemetryIntegration protected constructor(
         val telemetryValue = when (tile) {
             SettingsScreen.DATA_COLLECTION -> Value.SETTINGS_SEND_DATA_TILE
             SettingsScreen.CLEAR_COOKIES -> Value.SETTINGS_CLEAR_DATA_TILE
-            SettingsButton.ABOUT -> Value.SETTINGS_ABOUT_TILE
+            SettingsScreen.ABOUT -> Value.SETTINGS_ABOUT_TILE
             SettingsButton.PRIVACY_POLICY -> Value.SETTINGS_PRIVACY_TILE
             else -> null
         }
@@ -391,7 +391,7 @@ open class TelemetryIntegration protected constructor(
             }
 
             // Settings telemetry handled in a separate event
-            NavigationEvent.SETTINGS_DATA_COLLECTION, NavigationEvent.SETTINGS_CLEAR_COOKIES -> return
+            NavigationEvent.SETTINGS_DATA_COLLECTION, NavigationEvent.SETTINGS_CLEAR_COOKIES, NavigationEvent.SETTINGS_ABOUT -> return
 
             // Load is handled in a separate event
             NavigationEvent.LOAD_URL, NavigationEvent.LOAD_TILE -> return

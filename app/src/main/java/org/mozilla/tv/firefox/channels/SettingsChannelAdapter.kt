@@ -31,7 +31,7 @@ class SettingsChannelAdapter(
             R.string.settings_cookies_dialog_title,
             R.id.settings_tile_cleardata),
         SettingsItem(
-            SettingsButton.ABOUT,
+            SettingsScreen.ABOUT,
             R.drawable.mozac_ic_info,
             R.string.menu_about,
             R.id.settings_tile_about),
@@ -56,16 +56,7 @@ class SettingsChannelAdapter(
         titleView.setText(itemData.titleRes)
         cardView.setOnClickListener {
             when (val type = itemData.type) {
-                SettingsScreen.DATA_COLLECTION -> showSettings(type as SettingsScreen)
-                SettingsScreen.CLEAR_COOKIES -> showSettings(type as SettingsScreen)
-                SettingsButton.ABOUT -> {
-                    // Load about page by generating content to a temp file
-                    val context = cardView.context
-                    val content = org.mozilla.tv.firefox.webrender.LocalizedContent.generateAboutPage(context)
-                    val tempFile = java.io.File.createTempFile("about", ".html", context.cacheDir)
-                    tempFile.writeText(content)
-                    loadUrl("file://${tempFile.absolutePath}")
-                }
+                is SettingsScreen -> showSettings(type)
                 SettingsButton.PRIVACY_POLICY -> loadUrl(URLs.PRIVACY_NOTICE_URL)
             }
             TelemetryIntegration.INSTANCE.settingsTileClickEvent(itemData.type)
@@ -84,10 +75,10 @@ class SettingsTileHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
 // We differentiate between Settings tiles that lead to other Settings screens, or are just buttons
 interface SettingsTile
 enum class SettingsScreen : SettingsTile {
-    DATA_COLLECTION, CLEAR_COOKIES, FXA_PROFILE
+    DATA_COLLECTION, CLEAR_COOKIES, FXA_PROFILE, ABOUT
 }
 enum class SettingsButton : SettingsTile {
-        ABOUT, PRIVACY_POLICY
+        PRIVACY_POLICY
 }
 
 private data class SettingsItem(val type: SettingsTile, val imgRes: Int, val titleRes: Int, val viewId: Int)
