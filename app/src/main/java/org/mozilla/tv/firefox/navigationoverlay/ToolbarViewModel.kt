@@ -105,11 +105,15 @@ class ToolbarViewModel(
 
     @UiThread
     fun turboButtonClicked() {
-        val currentUrl = sessionRepo.state.blockingFirst().currentUrl
-        val turboModeActive = sessionRepo.state.blockingFirst().turboModeActive
+        val currentState = sessionRepo.currentState()
+        val currentUrl = currentState?.currentUrl ?: URLs.APP_URL_HOME
+        val turboModeActive = currentState?.turboModeActive ?: true
+        val isHomepage = currentUrl.isEqualToHomepage()
 
-        sessionRepo.setTurboModeEnabled(!turboModeActive)
-        sessionRepo.reload()
+        sessionRepo.setTurboModeEnabled(!turboModeActive, skipEngineSettingsUpdate = isHomepage)
+        if (!isHomepage) {
+            sessionRepo.reload()
+        }
 
         sendOverlayClickTelemetry(NavigationEvent.TURBO, turboChecked = !turboModeActive)
         currentUrl.let { if (!it.isEqualToHomepage()) hideOverlay() }
@@ -150,7 +154,7 @@ class ToolbarViewModel(
         // legacyState removed - telemetry disabled pending LiveDataReactiveStreams replacement
     }
 
-    private fun String.isEqualToHomepage() = this == URLs.APP_URL_HOME
+    private fun String.isEqualToHomepage() = this == URLs.APP_URL_HOME || this == "data:text/html,<html></html>" || this.isEmpty()
 
     private fun hideOverlay() {
         _events.onNext(Consumable.from(Action.SetOverlayVisible(false)))

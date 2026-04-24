@@ -19,18 +19,24 @@ class TurboMode(private val app: Application) {
     var isEnabled: Boolean
         get() = Settings.getInstance(app).isBlockingEnabled
         set(enabled: Boolean) {
-            val settings = Settings.getInstance(app)
-            settings.isBlockingEnabled = enabled
+            setEnabled(enabled, skipEngineSettingsUpdate = false)
+        }
 
-            // Update TrackingProtectionPolicy via EngineSettings (v72+ handles propagation automatically)
+    fun setEnabled(enabled: Boolean, skipEngineSettingsUpdate: Boolean) {
+        val settings = Settings.getInstance(app)
+        settings.isBlockingEnabled = enabled
+
+        // Update TrackingProtectionPolicy via EngineSettings (v72+ handles propagation automatically)
+        if (!skipEngineSettingsUpdate) {
             val engineSettings = app.webRenderComponents.engine.settings
             if (enabled) {
                 engineSettings.trackingProtectionPolicy = settings.trackingProtectionPolicy
             } else {
                 engineSettings.trackingProtectionPolicy = null
             }
-            _observable.postValue(enabled)
         }
+        _observable.postValue(enabled)
+    }
 
     private val _observable = MutableLiveData<Boolean>()
     val observable: LiveData<Boolean> = _observable

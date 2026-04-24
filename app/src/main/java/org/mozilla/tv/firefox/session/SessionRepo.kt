@@ -250,8 +250,8 @@ class SessionRepo(
 
     fun loadURL(url: Uri) = sessionUseCases.loadUrl.invoke(url.toString())
 
-    fun setTurboModeEnabled(enabled: Boolean) {
-        turboMode.isEnabled = enabled
+    fun setTurboModeEnabled(enabled: Boolean, skipEngineSettingsUpdate: Boolean = false) {
+        turboMode.setEnabled(enabled, skipEngineSettingsUpdate)
     }
 
     @Suppress("DEPRECATION")
