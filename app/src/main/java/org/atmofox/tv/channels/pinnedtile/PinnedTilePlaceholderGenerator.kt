@@ -17,18 +17,40 @@ import org.atmofox.tv.utils.UrlUtils
 class PinnedTilePlaceholderGenerator {
 
     companion object {
-        private val TEXT_SIZE_DP = 22f
+        private val TEXT_SIZE_DP = 36f
         private val DEFAULT_ICON_CHAR = '?'
+        private val ROTATION_MAX_DEG = 6f
 
         fun generate(context: Context, url: String?): Bitmap {
             val startingChar = getRepresentativeCharacter(url)
             val dimen = context.resources.getDimensionPixelSize(R.dimen.home_tile_placeholder_icon_size)
             val bitmap = Bitmap.createBitmap(dimen, dimen, Bitmap.Config.ARGB_8888)
-            bitmap.eraseColor(ContextCompat.getColor(context, R.color.tv_ink))
-            return drawCharacterOnBitmap(context, startingChar, bitmap)
+            bitmap.eraseColor(generateColorForUrl(url))
+            return drawCharacterOnBitmap(context, startingChar, bitmap, rotationForUrl(url))
         }
 
-        private fun drawCharacterOnBitmap(context: Context, character: Char, bitmap: Bitmap): Bitmap {
+        /** Deterministic pastel-ish color based on URL hash. */
+        fun generateColorForUrl(url: String?): Int {
+            val hash = url?.hashCode() ?: 0
+            val hue = (Math.abs(hash) % 360).toFloat()
+            val sat = 0.55f + (Math.abs(hash shr 8) % 20) / 100f  // 0.55 – 0.74
+            val value = 0.65f + (Math.abs(hash shr 16) % 15) / 100f // 0.65 – 0.79
+            return android.graphics.Color.HSVToColor(floatArrayOf(hue, sat, value))
+        }
+
+        /** Slight left rotation for style. */
+        fun rotationForUrl(url: String?): Float {
+            val hash = url?.hashCode() ?: 0
+            val step = Math.abs(hash shr 4) % 3  // 0..2
+            return -8f + step * 2f  // -8, -6, -4 degrees (left tilt)
+        }
+
+        private fun drawCharacterOnBitmap(
+            context: Context,
+            character: Char,
+            bitmap: Bitmap,
+            rotationDeg: Float
+        ): Bitmap {
             val desiredTextSize = TypedValue.applyDimension(
                     TypedValue.COMPLEX_UNIT_DIP, TEXT_SIZE_DP, context.resources.displayMetrics)
             val paint = Paint().apply {
@@ -36,13 +58,17 @@ class PinnedTilePlaceholderGenerator {
                 textAlign = Paint.Align.CENTER
                 textSize = desiredTextSize
                 isAntiAlias = true
+                isFakeBoldText = true
             }
 
             val canvas = Canvas(bitmap)
+            canvas.save()
+            canvas.rotate(rotationDeg, canvas.width / 2.0f, canvas.height / 2.0f)
             canvas.drawText(character.toString(),
                     canvas.width / 2.0f,
-                    canvas.height / 2.0f - (paint.descent() + paint.ascent()) / 2.0f,
+                    canvas.height / 2.0f - (paint.descent() + paint.ascent()) / 2.0f + canvas.height * 0.08f,
                     paint)
+            canvas.restore()
 
             return bitmap
         }

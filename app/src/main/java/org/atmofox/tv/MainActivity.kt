@@ -6,10 +6,11 @@
 package org.atmofox.tv
 
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.View
 import androidx.activity.compose.setContent
-import io.reactivex.disposables.CompositeDisposable
-import io.reactivex.rxkotlin.addTo
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import mozilla.components.browser.state.action.TabListAction
 import mozilla.components.browser.state.selector.selectedTab
 import mozilla.components.browser.state.state.ContentState
@@ -36,8 +37,6 @@ interface MediaSessionHolder {
 
 class MainActivity : LocaleAwareAppCompatActivity(), MediaSessionHolder, OnUrlEnteredListener {
     private val LOG_TAG = "MainActivity"
-    private val startStopCompositeDisposable = CompositeDisposable()
-
     // MediaSession stub for compatibility with WebRenderFragment during migration.
     override val videoVoiceCommandMediaSession: VideoVoiceCommandMediaSession
         get() = throw NotImplementedError("MediaSession removed during Compose migration")
@@ -104,27 +103,25 @@ class MainActivity : LocaleAwareAppCompatActivity(), MediaSessionHolder, OnUrlEn
         LocaleManager.getInstance().resetLocaleIfChanged(applicationContext)
         TelemetryIntegration.INSTANCE.stopSession(this)
         TelemetryIntegration.INSTANCE.stopMainActivity()
-        startStopCompositeDisposable.clear()
     }
 
     override fun onStart() {
         super.onStart()
 
         @Suppress("DEPRECATION")
-        (application as FirefoxApplication).mainActivityCommandBus
-            .subscribe { command ->
+        lifecycleScope.launch {
+            (application as FirefoxApplication).mainActivityCommandBus.collect { command ->
                 when (command) {
-                    Command.BEGIN_LOGIN -> serviceLocator.fxaLoginUseCase.beginLogin(supportFragmentManager)
-                    null -> { /* do nothing */ }
+                    Command.BEGIN_LOGIN -> serviceLocator.fxaLoginUseCase.beginLogin()
                 }
             }
-            .addTo(startStopCompositeDisposable)
+        }
 
         // Received tabs and polling removed with ADMIntegration in v56+.
     }
 
     override fun onNonTextInputUrlEntered(urlStr: String) {
-        serviceLocator.screenController.onUrlEnteredInner(this, supportFragmentManager, urlStr, false, null, null)
+        serviceLocator.screenController.onUrlEnteredInner(this, urlStr, false, null, null)
     }
 
     override fun onTextInputUrlEntered(
@@ -132,10 +129,46 @@ class MainActivity : LocaleAwareAppCompatActivity(), MediaSessionHolder, OnUrlEn
         autocompleteResult: InlineAutocompleteEditText.AutocompleteResult?,
         inputLocation: UrlTextInputLocation?
     ) {
-        serviceLocator.screenController.onUrlEnteredInner(this, supportFragmentManager, urlStr, true, autocompleteResult, inputLocation)
+        serviceLocator.screenController.onUrlEnteredInner(this, urlStr, true, autocompleteResult, inputLocation)
     }
 
     override fun onDestroy() {
         super.onDestroy()
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // Back presses are all handled through onBackPressed.
+        //
+        // Note: on device, back presses emit one KEYCODE_BACK. On emulator, they
+        // emit one KEYCODE_BACK **AND** one KEYCODE_DEL. We short on both to make
+        // code paths consistent between the two.
+        if (event.keyCode == KeyEvent.KEYCODE_BACK) {
+            if (event.action == KeyEvent.ACTION_DOWN) onBackPressed()
+            return true
+        }
+
+        if (event.keyCode == KeyEvent.KEYCODE_DEL) return true
+
+        TelemetryIntegration.INSTANCE.saveRemoteControlInformation(applicationContext, event)
+
+        // Route dpad/cursor events to the cursor model when the browser screen is active.
+        val activeScreen = serviceLocator.screenController.currentActiveScreen.value
+        if (activeScreen == ScreenControllerStateMachine.ActiveScreen.WEB_RENDER &&
+            (event.keyCode == KeyEvent.KEYCODE_DPAD_UP ||
+             event.keyCode == KeyEvent.KEYCODE_DPAD_DOWN ||
+             event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT ||
+             event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ||
+             event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
+             event.keyCode == KeyEvent.KEYCODE_ENTER)
+        ) {
+            val handled = serviceLocator.cursorModel.handleKeyEvent(event)
+            handled.simulatedTouch?.let {
+                dispatchTouchEvent(it)
+                it.recycle()
+            }
+            if (handled.wasKeyEventConsumed) return true
+        }
+
+        return super.dispatchKeyEvent(event)
     }
 }

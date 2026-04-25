@@ -23,7 +23,7 @@ import org.atmofox.tv.compose.navigation.Screen
 import org.atmofox.tv.compose.navigation.SettingsType
 import org.atmofox.tv.compose.onboarding.OnboardingScreen
 import org.atmofox.tv.compose.settings.SettingsScreen
-import org.atmofox.tv.compose.utils.collectAsState
+import androidx.compose.runtime.collectAsState
 import org.atmofox.tv.ext.serviceLocator
 import org.atmofox.tv.utils.URLs
 import org.atmofox.tv.utils.UrlUtils
@@ -48,17 +48,7 @@ fun FirefoxTvApp(
     val sessionRepo = serviceLocator.sessionRepo
     val screenController = serviceLocator.screenController
 
-    val state by sessionRepo.state.collectAsState(
-        initial = sessionRepo.currentState()
-            ?: org.atmofox.tv.session.SessionRepo.State(
-                backEnabled = false,
-                forwardEnabled = false,
-                desktopModeActive = false,
-                turboModeActive = false,
-                currentUrl = URLs.APP_URL_HOME,
-                loading = false
-            )
-    )
+    val state by sessionRepo.state.collectAsState()
     var previousUrl by remember { mutableStateOf(state.currentUrl) }
 
     // Auto-switch from Browser to MenuOverlay when back navigation lands on internal URL
@@ -75,11 +65,11 @@ fun FirefoxTvApp(
 
     // Polling fallback: ensure SessionRepo emits state updates even if
     // store.observeManually callback is not invoked (e.g. due to lifecycle issues).
-    // update() uses onNextIfNew so this is cheap when nothing changed.
+    // update() uses setIfNew so this is cheap when nothing changed.
     LaunchedEffect(Unit) {
         while (true) {
             sessionRepo.update()
-            delay(200)
+            delay(5000)
         }
     }
 
@@ -92,6 +82,21 @@ fun FirefoxTvApp(
             Screen.Onboarding -> ScreenControllerStateMachine.ActiveScreen.WEB_RENDER
         }
         screenController.setActiveScreenForCompose(activeScreen)
+    }
+
+    // Observe ScreenController state changes from non-Compose code (e.g., FxA login)
+    val controllerScreen by screenController.currentActiveScreen.collectAsState()
+    LaunchedEffect(controllerScreen) {
+        val targetScreen = when (controllerScreen) {
+            ScreenControllerStateMachine.ActiveScreen.WEB_RENDER -> Screen.Browser
+            ScreenControllerStateMachine.ActiveScreen.NAVIGATION_OVERLAY -> Screen.MenuOverlay
+            ScreenControllerStateMachine.ActiveScreen.SETTINGS -> Screen.Settings
+            ScreenControllerStateMachine.ActiveScreen.FXA_PROFILE -> Screen.Settings
+            else -> currentScreen
+        }
+        if (targetScreen != currentScreen) {
+            currentScreen = targetScreen
+        }
     }
 
     // Handle hardware back button for screen navigation (TV remote BACK / DPad)

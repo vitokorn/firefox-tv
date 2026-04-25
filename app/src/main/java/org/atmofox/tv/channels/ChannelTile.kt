@@ -12,11 +12,9 @@ import android.widget.ImageView
 import androidx.core.graphics.drawable.toBitmap
 import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.RecyclerView
-import com.squareup.picasso.RequestCreator
-import com.squareup.picasso.Transformation
+import coil.load
 import org.atmofox.tv.R
 import org.atmofox.tv.ext.getDimenPixelSize
-import org.atmofox.tv.utils.PicassoWrapper
 import java.io.File
 
 enum class TileSource { BUNDLED, CUSTOM, NEWS, SPORTS, MUSIC }
@@ -87,33 +85,10 @@ data class ChannelTile(
 sealed class ImageSetStrategy {
     abstract operator fun invoke(imageView: ImageView)
 
-    protected var transformation: Transformation? = null
-
-    // This cannot be done during strategy instantiation because it will often require
-    // information about the target ImageView (particularly its size)
-    fun setTransformation(transformation: Transformation): ImageSetStrategy {
-        this.transformation = transformation
-        return this
-    }
-
-    protected fun RequestCreator.applyTransformationIfNotNull(transformation: Transformation?): RequestCreator {
-        return if (transformation != null) this.transform(transformation)
-        else this
-    }
-
     data class ById(val id: Int) : ImageSetStrategy() {
         override fun invoke(imageView: ImageView) {
-            // Picasso doesn't support SVGs, so we need to do a little extra work to be
-            // able to apply our transformation
-            // See https://github.com/square/picasso/issues/1109
             val bitmap = imageView.context.resources.getDrawable(id, null)
                 .toBitmap()
-                .let {
-                    val transformation = transformation
-                    if (transformation != null) transformation.transform(it)
-                    else it
-                }
-
             imageView.setImageBitmap(bitmap)
         }
     }
@@ -121,25 +96,18 @@ sealed class ImageSetStrategy {
     // Note that ByPath can be used with either local paths or URLs
     data class ByPath(val path: String, val placeholderId: Int? = null, val errorId: Int? = null) : ImageSetStrategy() {
         override fun invoke(imageView: ImageView) {
-            PicassoWrapper.client
-                .load(path)
-                .applyTransformationIfNotNull(transformation)
-                .let { requestCreator ->
-                    if (placeholderId != null) requestCreator.placeholder(placeholderId)
-                    if (errorId == null) requestCreator
-                    else requestCreator.error(errorId)
-                }
-                .into(imageView)
+            imageView.load(path) {
+                placeholderId?.let { placeholder(it) }
+                errorId?.let { error(it) }
+            }
         }
     }
 
     data class ByFile(val file: File, val backup: Drawable) : ImageSetStrategy() {
         override fun invoke(imageView: ImageView) {
-            PicassoWrapper.client
-                .load(file)
-                .placeholder(backup)
-                .applyTransformationIfNotNull(transformation)
-                .into(imageView)
+            imageView.load(file) {
+                placeholder(backup)
+            }
         }
     }
 }

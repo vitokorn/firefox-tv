@@ -7,7 +7,7 @@ package org.atmofox.tv.channels
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import io.reactivex.Observable
+import kotlinx.coroutines.flow.Flow
 import org.atmofox.tv.R
 
 /**
@@ -21,7 +21,7 @@ class DefaultChannel(
 
     val focusChangeObservable get() = adapter.focusChangeObservable
 
-    val removeTileEvents: Observable<ChannelTile> = adapter.removeEvents
+    val removeTileEvents: Flow<ChannelTile> = adapter.removeEvents
 
     fun setTitle(title: CharSequence) {
         titleView.text = title

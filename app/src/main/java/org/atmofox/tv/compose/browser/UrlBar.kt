@@ -22,6 +22,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -35,7 +40,7 @@ import org.atmofox.tv.compose.theme.PhotonBlue50
 import org.atmofox.tv.compose.theme.PhotonGrey10
 import org.atmofox.tv.compose.theme.PhotonGrey40
 import org.atmofox.tv.compose.theme.TvGray2
-import org.atmofox.tv.compose.utils.collectAsState
+import androidx.compose.runtime.collectAsState
 import org.atmofox.tv.ext.serviceLocator
 import org.atmofox.tv.utils.URLs
 import org.atmofox.tv.utils.UrlUtils
@@ -48,6 +53,7 @@ import org.atmofox.tv.utils.UrlUtils
  */
 @Composable
 fun UrlBar(
+    onSubmit: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -98,6 +104,28 @@ fun UrlBar(
             .padding(horizontal = 10.dp, vertical = 8.dp)
             .onFocusChanged { focusState ->
                 isFocused = focusState.isFocused
+            }
+            .onPreviewKeyEvent { keyEvent ->
+                if (isFocused && keyEvent.type == KeyEventType.KeyDown &&
+                    (keyEvent.key == Key.DirectionLeft || keyEvent.key == Key.DirectionRight)
+                ) {
+                    true
+                } else if (isFocused && keyEvent.type == KeyEventType.KeyDown &&
+                    (keyEvent.key == Key.Enter || keyEvent.key == Key.NumPadEnter)
+                ) {
+                    if (text.isNotEmpty() && text != URLs.APP_URL_HOME) {
+                        val url = if (UrlUtils.isUrl(text)) {
+                            text
+                        } else {
+                            UrlUtils.createSearchUrl(context, text)
+                        }
+                        serviceLocator.sessionUseCases.loadUrl.invoke(url)
+                        onSubmit()
+                    }
+                    true
+                } else {
+                    false
+                }
             },
         singleLine = true,
         textStyle = TextStyle(
@@ -115,6 +143,7 @@ fun UrlBar(
                         UrlUtils.createSearchUrl(context, text)
                     }
                     serviceLocator.sessionUseCases.loadUrl.invoke(url)
+                    onSubmit()
                 }
             }
         ),

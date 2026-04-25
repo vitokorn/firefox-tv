@@ -6,7 +6,6 @@ package org.atmofox.tv.compose.browser
 
 import android.graphics.PointF
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -19,13 +18,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import io.reactivex.disposables.CompositeDisposable
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import org.atmofox.tv.compose.engine.EngineViewCompose
+import org.atmofox.tv.ext.couldScrollInDirection
+import org.atmofox.tv.ext.scrollByClamped
 import org.atmofox.tv.ext.serviceLocator
 import org.atmofox.tv.webrender.cursor.CursorView
 
@@ -56,15 +60,39 @@ fun BrowserScreen(
         // Engine view with floating progress pill at bottom-left
         val context = LocalContext.current
         val cursorModel = context.serviceLocator.cursorModel
-        val engineViewDisposable = remember { CompositeDisposable() }
+        val cursorScope = rememberCoroutineScope()
+        val engineView = remember(context) {
+            context.serviceLocator.engineViewCache.getEngineView(context)
+        }
 
-        DisposableEffect(Unit) {
+        DisposableEffect(engineView, cursorModel) {
+            cursorModel.webViewCouldScrollInDirectionProvider = { direction ->
+                engineView.couldScrollInDirection(direction)
+            }
             onDispose {
-                engineViewDisposable.clear()
+                cursorModel.webViewCouldScrollInDirectionProvider = { false }
             }
         }
 
-        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+        DisposableEffect(engineView, cursorModel, cursorScope) {
+            val job = cursorModel.scrollRequests
+                .onEach { scrollDist ->
+                    engineView.scrollByClamped(scrollDist.x.toInt(), scrollDist.y.toInt())
+                }
+                .launchIn(cursorScope)
+            onDispose { job.cancel() }
+        }
+
+        Box(modifier = Modifier
+            .fillMaxWidth()
+            .weight(1f)
+            .onGloballyPositioned { coordinates ->
+                cursorModel.screenBounds = PointF(
+                    coordinates.size.width.toFloat(),
+                    coordinates.size.height.toFloat()
+                )
+            }
+        ) {
             EngineViewCompose(modifier = Modifier.fillMaxSize())
             BrowserProgressBar(
                 modifier = Modifier.align(Alignment.BottomStart)
@@ -78,14 +106,14 @@ fun BrowserScreen(
                     val cursorView = layout.findViewById<org.atmofox.tv.webrender.cursor.CursorView>(org.atmofox.tv.R.id.cursorView)
                     // Remove from the temporary parent and set up
                     (cursorView.parent as? ViewGroup)?.removeView(cursorView)
+                    // CursorView must fill the whole composable area so its canvas covers
+                    // the full screenBounds used for positioning and scrolling.
+                    cursorView.layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
                     cursorView.apply {
-                        cursorModel.screenBounds = PointF(
-                            ctx.resources.displayMetrics.widthPixels.toFloat(),
-                            ctx.resources.displayMetrics.heightPixels.toFloat()
-                        )
-                        setup(cursorModel).also { disposable ->
-                            engineViewDisposable.add(disposable)
-                        }
+                        setup(cursorModel, cursorScope)
                     }
                 },
                 modifier = Modifier.fillMaxSize()

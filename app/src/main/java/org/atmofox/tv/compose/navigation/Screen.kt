@@ -12,6 +12,7 @@ enum class Screen {
 }
 
 enum class SettingsType {
+    COMMON,
     DATA_COLLECTION,
     CLEAR_COOKIES,
     ABOUT,

@@ -4,8 +4,7 @@
 
 package org.atmofox.tv.compose.menu
 
-import android.graphics.BitmapFactory
-import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,6 +29,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,12 +40,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.graphics.drawable.toBitmap
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import org.atmofox.tv.R
 import org.atmofox.tv.compose.navigation.SettingsType
 import org.atmofox.tv.channels.ChannelTile
@@ -58,7 +58,7 @@ import org.atmofox.tv.compose.theme.PhotonGrey10
 import org.atmofox.tv.compose.theme.PhotonGrey50
 import org.atmofox.tv.compose.theme.PhotonGrey70
 import org.atmofox.tv.compose.theme.TvGray2
-import org.atmofox.tv.compose.utils.collectAsState
+import androidx.compose.runtime.collectAsState
 import org.atmofox.tv.ext.serviceLocator
 import org.atmofox.tv.utils.URLs
 
@@ -79,10 +79,10 @@ fun MenuOverlay(
     val channelRepo = context.serviceLocator.channelRepo
     val sessionUseCases = context.serviceLocator.sessionUseCases
 
-    val pinnedTiles by channelRepo.getPinnedTiles().collectAsState(initial = emptyList())
-    val newsTiles by channelRepo.getNewsTiles().collectAsState(initial = emptyList())
-    val sportsTiles by channelRepo.getSportsTiles().collectAsState(initial = emptyList())
-    val musicTiles by channelRepo.getMusicTiles().collectAsState(initial = emptyList())
+    val pinnedTiles by channelRepo.pinnedTilesFlow.collectAsState()
+    val newsTiles by channelRepo.newsTilesFlow.collectAsState()
+    val sportsTiles by channelRepo.sportsTilesFlow.collectAsState()
+    val musicTiles by channelRepo.musicTilesFlow.collectAsState()
 
     val scrollState = rememberScrollState()
 
@@ -102,6 +102,7 @@ fun MenuOverlay(
 
         // URL bar (dark rounded rect with search icon)
         UrlBar(
+            onSubmit = onNavigateToBrowser,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = 57.dp, end = 57.dp, bottom = 48.dp)
@@ -177,14 +178,9 @@ fun MenuOverlay(
         ) {
             val context = LocalContext.current
             SettingsTile(
-                label = context.getString(R.string.preference_mozilla_telemetry2),
+                label = context.getString(R.string.menu_settings),
                 iconRes = R.drawable.ic_data_collection,
-                onClick = { onNavigateToSettings(SettingsType.DATA_COLLECTION) }
-            )
-            SettingsTile(
-                label = context.getString(R.string.settings_cookies_dialog_title),
-                iconRes = R.drawable.mozac_ic_delete,
-                onClick = { onNavigateToSettings(SettingsType.CLEAR_COOKIES) }
+                onClick = { onNavigateToSettings(SettingsType.COMMON) }
             )
             SettingsTile(
                 label = context.getString(R.string.menu_about),
@@ -255,35 +251,30 @@ private fun ChannelTileItem(
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
 
-    val imageBitmap = remember(tile.setImage) {
-        val bitmap = when (tile.setImage) {
-            is ImageSetStrategy.ById -> {
-                try {
-                    context.resources.getDrawable(tile.setImage.id, null)
-                        ?.toBitmap(width.value.toInt(), height.value.toInt(), android.graphics.Bitmap.Config.ARGB_8888)
-                } catch (_: Exception) { null }
-            }
-            is ImageSetStrategy.ByPath -> {
-                val path = tile.setImage.path
-                if (path.startsWith("file:///android_asset/")) {
-                    val assetPath = path.removePrefix("file:///android_asset/")
-                    try {
-                        BitmapFactory.decodeStream(context.assets.open(assetPath))
-                    } catch (_: Exception) { null }
-                } else null
-            }
-            is ImageSetStrategy.ByFile -> {
-                if (tile.setImage.file.exists()) {
-                    BitmapFactory.decodeFile(tile.setImage.file.absolutePath)
-                } else {
-                    try {
-                        tile.setImage.backup.toBitmap(width.value.toInt(), height.value.toInt(), android.graphics.Bitmap.Config.ARGB_8888)
-                    } catch (_: Exception) { null }
+    val imageModel = when (tile.setImage) {
+        is ImageSetStrategy.ById -> tile.setImage.id
+        is ImageSetStrategy.ByPath -> tile.setImage.path
+        is ImageSetStrategy.ByFile -> tile.setImage.file
+    }
+
+    val imageRequest = ImageRequest.Builder(context)
+        .data(imageModel)
+        .memoryCacheKey(imageModel.toString())
+        .diskCacheKey(imageModel.toString())
+        .apply {
+            when (tile.setImage) {
+                is ImageSetStrategy.ByPath -> {
+                    tile.setImage.placeholderId?.let { placeholder(it) }
+                    tile.setImage.errorId?.let { error(it) }
                 }
+                is ImageSetStrategy.ByFile -> {
+                    placeholder(tile.setImage.backup)
+                    error(tile.setImage.backup)
+                }
+                else -> {}
             }
         }
-        bitmap?.asImageBitmap()
-    }
+        .build()
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -310,13 +301,12 @@ private fun ChannelTileItem(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            imageBitmap?.let {
-                Image(
-                    bitmap = it,
-                    contentDescription = tile.title,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+            AsyncImage(
+                model = imageRequest,
+                contentDescription = tile.title,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
         }
 
         // Title below the card, matching old home_tile.xml layout

@@ -5,7 +5,9 @@
 package org.atmofox.tv.webrender
 
 import androidx.lifecycle.ViewModel
-import io.reactivex.Observable
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import org.atmofox.tv.R
 import org.atmofox.tv.ScreenController
 import org.atmofox.tv.ScreenControllerStateMachine.ActiveScreen
@@ -18,7 +20,7 @@ class WebRenderViewModel(
 
     val onFxaLoginSuccess = fxaLoginUseCase.onLoginSuccess
 
-    val focusRequests: Observable<Int> = screenController.currentActiveScreen
+    val focusRequests: Flow<Int> = screenController.currentActiveScreen
             .filter { currentScreen -> currentScreen == ActiveScreen.WEB_RENDER }
             .map { R.id.engineView }
 }

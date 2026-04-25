@@ -12,11 +12,9 @@ import org.atmofox.tv.R
 import org.atmofox.tv.hint.HintContentFactory
 import org.atmofox.tv.navigationoverlay.ChannelTitles
 import org.atmofox.tv.navigationoverlay.NavigationOverlayViewModel
-import org.atmofox.tv.navigationoverlay.OverlayHintViewModel
 import org.atmofox.tv.navigationoverlay.ToolbarViewModel
 import org.atmofox.tv.settings.SettingsViewModel
 import org.atmofox.tv.utils.ServiceLocator
-import org.atmofox.tv.webrender.WebRenderHintViewModel
 import org.atmofox.tv.webrender.WebRenderViewModel
 
 /**
@@ -67,17 +65,6 @@ class ViewModelFactory(
                 serviceLocator.fxaLoginUseCase
             ) as T
 
-            OverlayHintViewModel::class.java -> OverlayHintViewModel(
-                serviceLocator.sessionRepo,
-                hintContentFactory.getCloseMenuHint()
-            ) as T
-
-            WebRenderHintViewModel::class.java -> WebRenderHintViewModel(
-                serviceLocator.sessionRepo,
-                serviceLocator.cursorModel,
-                serviceLocator.screenController,
-                hintContentFactory.getOpenMenuHint()
-            ) as T
 
             WebRenderViewModel::class.java -> WebRenderViewModel(
                 serviceLocator.screenController,

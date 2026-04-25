@@ -32,7 +32,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
@@ -42,7 +44,7 @@ import org.atmofox.tv.channels.pinnedtile.PinnedTile
 import org.atmofox.tv.compose.theme.Ink80
 import org.atmofox.tv.compose.theme.PhotonBlue50
 import org.atmofox.tv.compose.theme.PhotonGrey10
-import org.atmofox.tv.compose.utils.collectAsState
+import androidx.compose.runtime.collectAsState
 import org.atmofox.tv.ext.serviceLocator
 import org.atmofox.tv.utils.URLs
 
@@ -62,20 +64,9 @@ fun NavigationControls(
     val sessionRepo = serviceLocator.sessionRepo
     val pinnedTileRepo = serviceLocator.pinnedTileRepo
 
-    val currentState = sessionRepo.currentState()
-    val state by sessionRepo.state.collectAsState(
-        initial = currentState
-            ?: org.atmofox.tv.session.SessionRepo.State(
-                backEnabled = false,
-                forwardEnabled = false,
-                desktopModeActive = false,
-                turboModeActive = false,
-                currentUrl = URLs.APP_URL_HOME,
-                loading = false
-            )
-    )
+    val state by sessionRepo.state.collectAsState()
 
-    val pinnedTiles by pinnedTileRepo.pinnedTiles.collectAsState(initial = linkedMapOf<String, PinnedTile>())
+    val pinnedTiles by pinnedTileRepo.pinnedTiles.collectAsState()
     val isCurrentUrlPinned = pinnedTiles.containsKey(state.currentUrl)
     val isHomepage = state.currentUrl == URLs.APP_URL_HOME ||
             state.currentUrl == "data:text/html,<html></html>" ||
@@ -84,7 +75,7 @@ fun NavigationControls(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 57.dp, vertical = 8.dp),
+            .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -152,17 +143,17 @@ fun NavigationControls(
             onClick = onOpenMenu
         )
 
-        // ── FxA / Send to Fire TV ──
+        // ── Firefox Account ──
         NavButton(
             iconRes = R.drawable.ic_fxa_login,
-            contentDescription = "Send to Fire TV",
+            contentDescription = "Firefox Account",
             enabled = true,
-            onClick = { /* FxA integration placeholder */ }
+            onClick = { serviceLocator.fxaLoginUseCase.beginLogin() }
         )
 
         // ── Firefox logo ──
         Icon(
-            painter = painterResource(id = R.drawable.ic_atmofox_and_wordmark),
+            painter = painterResource(id = R.mipmap.ic_launcher),
             contentDescription = "Firefox",
             modifier = Modifier.size(48.dp),
             tint = Color.Unspecified
@@ -214,8 +205,10 @@ private fun NavButton(
         }
 
         if (isFocused) {
+            val tooltipOffset = with(LocalDensity.current) { 54.dp.roundToPx() }
             Popup(
-                alignment = Alignment.BottomCenter,
+                alignment = Alignment.TopCenter,
+                offset = IntOffset(0, tooltipOffset),
                 properties = PopupProperties(focusable = false)
             ) {
                 Text(
@@ -223,7 +216,6 @@ private fun NavButton(
                     color = PhotonGrey10,
                     fontSize = 10.sp,
                     modifier = Modifier
-                        .padding(top = 52.dp)
                         .background(Color.Black.copy(alpha = 0.8f), RoundedCornerShape(2.dp))
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 )
@@ -279,8 +271,10 @@ private fun NavCheckableButton(
         }
 
         if (isFocused) {
+            val tooltipOffset = with(LocalDensity.current) { 54.dp.roundToPx() }
             Popup(
-                alignment = Alignment.BottomCenter,
+                alignment = Alignment.TopCenter,
+                offset = IntOffset(0, tooltipOffset),
                 properties = PopupProperties(focusable = false)
             ) {
                 Text(
@@ -288,7 +282,6 @@ private fun NavCheckableButton(
                     color = PhotonGrey10,
                     fontSize = 10.sp,
                     modifier = Modifier
-                        .padding(top = 52.dp)
                         .background(Color.Black.copy(alpha = 0.8f), RoundedCornerShape(2.dp))
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 )

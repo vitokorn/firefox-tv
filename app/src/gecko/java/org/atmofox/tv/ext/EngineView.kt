@@ -213,6 +213,16 @@ fun EngineView.onResumeIfNotNull() {
         this.onResume()
 }
 
+fun EngineView.onStopIfNotNull() {
+    if (geckoView != null)
+        (this as? mozilla.components.browser.engine.gecko.GeckoEngineView)?.onStop()
+}
+
+fun EngineView.onDestroyIfNotNull() {
+    if (geckoView != null)
+        (this as? mozilla.components.browser.engine.gecko.GeckoEngineView)?.onDestroy()
+}
+
 fun EngineView.couldScrollInDirection(direction: Direction): Boolean =
         when (direction) {
             Direction.UP -> geckoView?.canScrollVertically(-1)

@@ -10,10 +10,12 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import androidx.annotation.AnyThread
-import io.reactivex.Observable
-import io.reactivex.subjects.BehaviorSubject
-import io.reactivex.subjects.PublishSubject
-import io.reactivex.subjects.Subject
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import mozilla.components.browser.state.action.TabListAction
 import mozilla.components.browser.state.selector.selectedTab
 import mozilla.components.browser.state.state.TabSessionState
@@ -53,13 +55,20 @@ class SessionRepo(
         val urls: List<String>
     )
 
-    private val _state: BehaviorSubject<State> = BehaviorSubject.create()
-    val state: Observable<State> = _state.hide()
+    private val _state = MutableStateFlow(State(
+        backEnabled = false,
+        forwardEnabled = false,
+        desktopModeActive = false,
+        turboModeActive = false,
+        currentUrl = "",
+        loading = false
+    ))
+    val state: StateFlow<State> = _state.asStateFlow()
 
-    fun currentState(): State? = _state.value
+    fun currentState(): State = _state.value
 
-    private val _events: Subject<Event> = PublishSubject.create()
-    val events: Observable<Event> = _events.hide()
+    private val _events = MutableSharedFlow<Event>(extraBufferCapacity = 1)
+    val events: SharedFlow<Event> = _events.asSharedFlow()
 
     var canGoBackTwice: (() -> Boolean?)? = null
     var browserHistoryState: (() -> BrowserHistoryState?)? = null
@@ -124,21 +133,9 @@ class SessionRepo(
      */
     fun forceUpdate(loading: Boolean, url: String) {
         val currentState = _state.value
-        val newState = if (currentState != null) {
-            currentState.copy(loading = loading, currentUrl = url)
-        } else {
-            val tab = store.state.selectedTab
-            State(
-                backEnabled = canGoBackTwice?.invoke() ?: tab?.content?.canGoBack ?: false,
-                forwardEnabled = tab?.content?.canGoForward ?: false,
-                desktopModeActive = false,
-                turboModeActive = turboMode.isEnabled,
-                currentUrl = url,
-                loading = loading
-            )
-        }
+        val newState = currentState.copy(loading = loading, currentUrl = url)
         Log.d("SessionRepo", "forceUpdate: loading=$loading, url=$url")
-        _state.onNext(newState)
+        _state.value = newState
     }
 
     @AnyThread
@@ -159,8 +156,8 @@ class SessionRepo(
                 // desktopMode removed in v72+. Defaults to false.
             }
 
-            fun <T : Any> BehaviorSubject<T>.onNextIfNew(value: T) {
-                if (this.value != value) this.onNext(value)
+            fun <T> MutableStateFlow<T>.setIfNew(value: T) {
+                if (this.value != value) this.value = value
             }
 
             val browserHistorySnapshot = browserHistoryState?.invoke()
@@ -171,14 +168,14 @@ class SessionRepo(
 
             val newState = State(
                 // The menu back button should not be enabled if the previous screen was our initial url (home)
-                backEnabled = canGoBackTwice?.invoke() ?: false,
+                backEnabled = tab.content.canGoBack,
                 forwardEnabled = tab.content.canGoForward,
                 desktopModeActive = false, // desktopMode removed in v72+
                 turboModeActive = turboMode.isEnabled,
                 currentUrl = displayUrl,
                 loading = tab.content.loading
             )
-            _state.onNextIfNew(newState)
+            _state.setIfNew(newState)
         }
     }
 
@@ -195,12 +192,12 @@ class SessionRepo(
         Log.d("SessionRepo", "attemptBack: url=${tab.content.url}, canGoBack=${tab.content.canGoBack}")
 
         if (tab.isYoutubeTV && forceYouTubeExit) {
-            _events.onNext(Event.ExitYouTube)
+            _events.tryEmit(Event.ExitYouTube)
             return true
         }
 
         if (tab.isYoutubeTV && !forceYouTubeExit) {
-            _events.onNext(Event.YouTubeBack)
+            _events.tryEmit(Event.YouTubeBack)
             return true
         }
 
@@ -247,9 +244,12 @@ class SessionRepo(
     /**
      * Causes [state] to emit its most recently pushed value. This can be used
      * to reset UI that has been adjusted by the user (e.g., EditText text)
+     *
+     * Note: with StateFlow this is a no-op because equal values are deduplicated.
      */
-    fun pushCurrentValue() = _state.value?.let { _state.onNext(it) } // TODO does this do anything? If not,
-    // we can have state.distinctUntilChanged and get rid of postIfNew
+    fun pushCurrentValue() {
+        // StateFlow does not re-emit unchanged values.
+    }
 
     fun loadURL(url: Uri) = sessionUseCases.loadUrl.invoke(url.toString())
 

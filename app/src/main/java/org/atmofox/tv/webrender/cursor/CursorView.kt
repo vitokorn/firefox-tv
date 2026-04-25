@@ -8,19 +8,18 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.PointF
 import android.util.AttributeSet
-import androidx.annotation.CheckResult
 import androidx.appcompat.widget.AppCompatImageView
 import androidx.core.view.isVisible
-import io.reactivex.disposables.CompositeDisposable
-import io.reactivex.disposables.Disposable
-import io.reactivex.rxkotlin.addTo
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import org.atmofox.tv.R
-import java.util.concurrent.TimeUnit
+import kotlin.time.Duration.Companion.seconds
 
 private val BITMAP_PRESSED = R.drawable.cursor_full_active
 private val BITMAP_UNPRESSED = R.drawable.cursor_full
 private const val HIDE_ANIMATION_DURATION_MILLIS = 250L
-private val HIDE_AFTER_MILLIS = TimeUnit.SECONDS.toMillis(3)
+private val HIDE_AFTER_MILLIS = 3.seconds.inWholeMilliseconds
 
 /**
  * Handles view state (except for position updates).
@@ -42,22 +41,20 @@ class CursorView(context: Context, attrs: AttributeSet) : AppCompatImageView(con
         setImageResource(BITMAP_UNPRESSED)
     }
 
-    @CheckResult(suggest = "Dispose me, please. 🥰")
-    fun setup(cursorModel: CursorModel): Disposable {
+    fun setup(cursorModel: CursorModel, scope: CoroutineScope) {
         this.cursorModel = cursorModel
 
-        val compositeDisposable = CompositeDisposable()
-
         cursorModel.isCursorEnabledForAppState
-                .subscribe { isEnabled ->
+                .onEach { isEnabled ->
                     isVisible = isEnabled
                     if (!isEnabled) {
                         animate().cancel()
                     }
-                }.addTo(compositeDisposable)
+                }
+                .launchIn(scope)
 
         cursorModel.isAnyCursorKeyPressed
-                .subscribe { cursorIsMovingOrPressed ->
+                .onEach { cursorIsMovingOrPressed ->
                     if (cursorIsMovingOrPressed) {
                         animate().cancel()
                         alpha = 1f
@@ -69,15 +66,15 @@ class CursorView(context: Context, attrs: AttributeSet) : AppCompatImageView(con
                                 .alpha(0f)
                                 .start()
                     }
-                }.addTo(compositeDisposable)
+                }
+                .launchIn(scope)
 
         cursorModel.isSelectPressed
-                .subscribe { pressed -> when (pressed) {
+                .onEach { pressed -> when (pressed) {
                         true -> setImageResource(BITMAP_PRESSED)
                         false -> setImageResource(BITMAP_UNPRESSED)
-                    } }.addTo(compositeDisposable)
-
-        return compositeDisposable
+                    } }
+                .launchIn(scope)
     }
 
     override fun onDraw(canvas: Canvas) {

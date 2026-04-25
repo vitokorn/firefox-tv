@@ -5,9 +5,11 @@
 package org.atmofox.tv.navigationoverlay
 
 import android.view.View
-import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.ViewModel
-import io.reactivex.Observable
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import org.atmofox.tv.R
 import org.atmofox.tv.ScreenController
 import org.atmofox.tv.ScreenControllerStateMachine.ActiveScreen
@@ -36,27 +38,29 @@ class NavigationOverlayViewModel(
     private val fxaLoginUseCase: FxaLoginUseCase
 ) : ViewModel() {
 
-    val pinnedTiles: Observable<ChannelDetails> = channelRepo.getPinnedTiles()
+    val pinnedTiles: Flow<ChannelDetails> = channelRepo.pinnedTilesFlow
         .map { ChannelDetails(title = channelTitles.pinned, tileList = it) }
 
-    val newsChannel: Observable<ChannelDetails> = channelRepo.getNewsTiles()
+    val newsChannel: Flow<ChannelDetails> = channelRepo.newsTilesFlow
         .map { ChannelDetails(title = channelTitles.newsAndPolitics, tileList = it) }
 
-    val sportsChannel: Observable<ChannelDetails> = channelRepo.getSportsTiles()
+    val sportsChannel: Flow<ChannelDetails> = channelRepo.sportsTilesFlow
         .map { ChannelDetails(title = channelTitles.sports, tileList = it) }
 
-    val musicChannel: Observable<ChannelDetails> = channelRepo.getMusicTiles()
+    val musicChannel: Flow<ChannelDetails> = channelRepo.musicTilesFlow
         .map { ChannelDetails(title = channelTitles.music, tileList = it) }
 
-    fun shouldBeDisplayed(channelDetails: Observable<ChannelDetails>): Observable<Boolean> =
+    fun shouldBeDisplayed(channelDetails: Flow<ChannelDetails>): Flow<Boolean> =
         channelDetails.map { it.tileList.isNotEmpty() }
-            .distinctUntilChanged()
 
-    val focusView: Observable<Int> = screenController.currentActiveScreen
-            .buffer(2, 1)
-            .filter { (_, currentScreen) -> currentScreen == ActiveScreen.NAVIGATION_OVERLAY }
-            .map { (prevScreen, _) ->
-                when (prevScreen!!) {
+    // focusView tracks screen transitions: emit a view ID to focus whenever we enter the overlay.
+    private var _previousScreen = ActiveScreen.NAVIGATION_OVERLAY
+    val focusView: Flow<Int> = screenController.currentActiveScreen
+            .filter { currentScreen -> currentScreen == ActiveScreen.NAVIGATION_OVERLAY }
+            .map { currentScreen ->
+                val prevScreen = _previousScreen
+                _previousScreen = currentScreen
+                when (prevScreen) {
                     ActiveScreen.WEB_RENDER -> R.id.navUrlInput
                     ActiveScreen.SETTINGS -> R.id.settings_tile_telemetry
                     ActiveScreen.NAVIGATION_OVERLAY -> View.NO_ID
@@ -64,7 +68,7 @@ class NavigationOverlayViewModel(
                 }
             }
 
-    val leftmostActiveToolBarId: Observable<Int> = toolbarViewModel.state
+    val leftmostActiveToolBarId: Flow<Int> = toolbarViewModel.state
             .map { state ->
                 when {
                     state.backEnabled -> R.id.navButtonBack
@@ -74,25 +78,25 @@ class NavigationOverlayViewModel(
                 }
             }
 
-    fun fxaButtonClicked(fragmentManager: FragmentManager) {
+    fun fxaButtonClicked() {
         fun showFxaProfileScreen() {
-            screenController.showSettingsScreen(fragmentManager, SettingsScreen.FXA_PROFILE)
+            screenController.showSettingsScreen(SettingsScreen.FXA_PROFILE)
             TelemetryIntegration.INSTANCE.fxaShowProfileButtonClickEvent()
         }
 
-        when (fxaRepo.accountState.blockingFirst()) {
+        when (fxaRepo.accountState.value) {
             is AccountState.AuthenticatedWithProfile -> showFxaProfileScreen()
             is AccountState.AuthenticatedNoProfile -> {
                 // TODO The UI for this error state is not perfect. See #2721
-                showFxaProfileScreen()
+                fxaLoginUseCase.beginLogin()
             }
             is AccountState.NeedsReauthentication -> {
                 TelemetryIntegration.INSTANCE.fxaReauthorizeButtonClickEvent()
-                fxaLoginUseCase.beginLogin(fragmentManager)
+                fxaLoginUseCase.beginLogin()
             }
             is AccountState.NotAuthenticated, AccountState.Initial -> {
                 TelemetryIntegration.INSTANCE.fxaLoginButtonClickEvent()
-                fxaLoginUseCase.beginLogin(fragmentManager)
+                fxaLoginUseCase.beginLogin()
             }
         }
     }

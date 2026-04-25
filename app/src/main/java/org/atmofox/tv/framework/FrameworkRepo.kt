@@ -7,8 +7,10 @@ package org.atmofox.tv.framework
 import android.view.accessibility.AccessibilityManager
 import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
-import io.reactivex.Observable
-import io.reactivex.subjects.BehaviorSubject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
  * A model to hold state related to the Android framework.
@@ -17,9 +19,8 @@ class FrameworkRepo @VisibleForTesting constructor() {
 
     private var wasInitCalled = false
 
-    private val _isVoiceViewEnabled = BehaviorSubject.createDefault<Boolean>(false)
-    val isVoiceViewEnabled: Observable<Boolean> = _isVoiceViewEnabled.hide()
-        .distinctUntilChanged()
+    private val _isVoiceViewEnabled = MutableStateFlow(false)
+    val isVoiceViewEnabled: StateFlow<Boolean> = _isVoiceViewEnabled.asStateFlow()
 
     /**
      * Initializes this repository.
@@ -38,7 +39,7 @@ class FrameworkRepo @VisibleForTesting constructor() {
     private inner class TouchExplorationStateChangeListener : AccessibilityManager.TouchExplorationStateChangeListener {
         @UiThread // for simplicity: listener should be called from UI thread anyway.
         override fun onTouchExplorationStateChanged(isEnabled: Boolean) {
-            _isVoiceViewEnabled.onNext(isEnabled) // Touch exploration state == VoiceView.
+            _isVoiceViewEnabled.value = isEnabled // Touch exploration state == VoiceView.
         }
     }
 

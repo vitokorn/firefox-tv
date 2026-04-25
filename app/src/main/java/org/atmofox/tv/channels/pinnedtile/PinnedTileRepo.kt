@@ -9,10 +9,12 @@ import android.content.SharedPreferences
 import android.graphics.Bitmap
 import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
-import androidx.lifecycle.LiveData
-import io.reactivex.BackpressureStrategy
-import io.reactivex.Observable
-import io.reactivex.subjects.BehaviorSubject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
@@ -33,22 +35,25 @@ private const val PREF_HOME_TILES = "homeTiles"
 class PinnedTileRepo(
     private val applicationContext: Context
 ) {
-    private val _pinnedTiles: BehaviorSubject<LinkedHashMap<String, PinnedTile>> =
-            BehaviorSubject.create()
-    val pinnedTiles: Observable<LinkedHashMap<String, PinnedTile>> = _pinnedTiles.hide()
+    private val _sharedPreferences by lazy { applicationContext.getSharedPreferences(PREF_HOME_TILES, Context.MODE_PRIVATE) }
 
-    val isEmpty: Observable<Boolean> = _pinnedTiles.map { it.size == 0 }
-            .distinctUntilChanged()
+    private val _pinnedTiles = MutableStateFlow(LinkedHashMap<String, PinnedTile>())
+    val pinnedTiles: StateFlow<LinkedHashMap<String, PinnedTile>> = _pinnedTiles.asStateFlow()
+
+    private val _isEmpty = MutableStateFlow(true)
+    val isEmpty: StateFlow<Boolean> = _isEmpty.asStateFlow()
+
+    init {
+        GlobalScope.launch(Dispatchers.IO) {
+            val loaded = loadTilesCache()
+            _pinnedTiles.value = loaded
+            _isEmpty.value = loaded.isEmpty()
+        }
+    }
 
     // Persist custom & bundled tiles size for telemetry
     var customTilesSize = 0
     var bundledTilesSize = 0
-
-    private val _sharedPreferences: SharedPreferences = applicationContext.getSharedPreferences(PREF_HOME_TILES, Context.MODE_PRIVATE)
-
-    init {
-        _pinnedTiles.onNext(loadTilesCache())
-    }
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     fun loadTilesCache(
@@ -73,7 +78,7 @@ class PinnedTileRepo(
         val newPinnedTile = CustomPinnedTile(url, "custom", UUID.randomUUID()) // TODO: titles
         // This method does some dangerous mutation in place.  Be careful when making changes, and
         // if you have the time, please clean this up
-        if (_pinnedTiles.value?.put(url, newPinnedTile) != null) return
+        if (_pinnedTiles.value.put(url, newPinnedTile) != null) return
         persistCustomTiles()
 
         if (screenshot != null) {
@@ -82,7 +87,8 @@ class PinnedTileRepo(
         ++customTilesSize
 
         // We reload tiles from the DB in order to avoid duplicating ordering logic in loadTilesCache
-        _pinnedTiles.onNext(loadTilesCache())
+        _pinnedTiles.value = loadTilesCache()
+        _isEmpty.value = _pinnedTiles.value.isEmpty()
     }
 
     /**
@@ -91,8 +97,9 @@ class PinnedTileRepo(
      */
     @UiThread
     fun removePinnedTile(url: String): String? {
-        val tileToRemove = _pinnedTiles.value?.remove(url) ?: return null
-        _pinnedTiles.onNext(_pinnedTiles.value!!)
+        val tileToRemove = _pinnedTiles.value.remove(url) ?: return null
+        _pinnedTiles.value = _pinnedTiles.value
+        _isEmpty.value = _pinnedTiles.value.isEmpty()
 
         when (tileToRemove) {
             is BundledPinnedTile -> {

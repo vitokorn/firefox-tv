@@ -8,11 +8,18 @@ import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.annotation.VisibleForTesting
-import io.reactivex.Observable
-import io.reactivex.android.schedulers.AndroidSchedulers
-import io.reactivex.rxkotlin.Observables
-import io.reactivex.schedulers.Schedulers
-import io.reactivex.subjects.BehaviorSubject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import org.atmofox.tv.channels.content.ChannelContent
 import org.atmofox.tv.channels.content.getMusicChannels
 import org.atmofox.tv.channels.content.getNewsChannels
@@ -43,20 +50,49 @@ class ChannelRepo(
     formattedDomainWrapper: FormattedDomainWrapper,
     private val pinnedTileRepo: PinnedTileRepo
 ) {
-    private val _sharedPreferences: SharedPreferences =
+    private val _sharedPreferences by lazy {
         application.getSharedPreferences(PREF_CHANNEL_REPO, Context.MODE_PRIVATE)
+    }
 
-    fun getPinnedTiles(): Observable<List<ChannelTile>> =
+    private val pinnedTiles = pinnedTileRepo.pinnedTiles
+        // This takes place off of the main thread because PinnedTile.toChannelTile needs
+        // to perform file access, and blocks to do so
+        .map { tiles -> tiles.values.toList().map { it.toChannelTile(imageUtilityWrapper, formattedDomainWrapper) } }
+        .flowOn(Dispatchers.IO)
+    private val blacklistedPinnedIds = MutableStateFlow(emptySet<String>())
+    private val bundledNewsTiles = MutableStateFlow(ChannelContent.getNewsChannels())
+    private val blacklistedNewsIds = MutableStateFlow(emptySet<String>())
+
+    private val bundledSportsTiles = MutableStateFlow(ChannelContent.getSportsChannels())
+    private val blacklistedSportsIds = MutableStateFlow(emptySet<String>())
+
+    private val bundledMusicTiles = MutableStateFlow(ChannelContent.getMusicChannels())
+    private val blacklistedMusicIds = MutableStateFlow(emptySet<String>())
+
+    init {
+        GlobalScope.launch(Dispatchers.IO) {
+            blacklistedPinnedIds.value = loadBlackList(TileSource.BUNDLED)
+            blacklistedNewsIds.value = loadBlackList(TileSource.NEWS)
+            blacklistedSportsIds.value = loadBlackList(TileSource.SPORTS)
+            blacklistedMusicIds.value = loadBlackList(TileSource.MUSIC)
+        }
+    }
+
+    val pinnedTilesFlow: StateFlow<List<ChannelTile>> =
         pinnedTiles.filterNotBlacklisted(blacklistedPinnedIds)
+            .stateIn(GlobalScope, SharingStarted.Lazily, emptyList())
 
-    fun getNewsTiles(): Observable<List<ChannelTile>> =
+    val newsTilesFlow: StateFlow<List<ChannelTile>> =
         bundledNewsTiles.filterNotBlacklisted(blacklistedNewsIds)
+            .stateIn(GlobalScope, SharingStarted.Lazily, emptyList())
 
-    fun getSportsTiles(): Observable<List<ChannelTile>> =
+    val sportsTilesFlow: StateFlow<List<ChannelTile>> =
         bundledSportsTiles.filterNotBlacklisted(blacklistedSportsIds)
+            .stateIn(GlobalScope, SharingStarted.Lazily, emptyList())
 
-    fun getMusicTiles(): Observable<List<ChannelTile>> =
+    val musicTilesFlow: StateFlow<List<ChannelTile>> =
         bundledMusicTiles.filterNotBlacklisted(blacklistedMusicIds)
+            .stateIn(GlobalScope, SharingStarted.Lazily, emptyList())
 
     fun removeChannelContent(tileData: ChannelTile) {
         when (tileData.tileSource) {
@@ -83,10 +119,10 @@ class ChannelRepo(
         blackList.add(id)
 
         when (source) {
-            TileSource.BUNDLED -> blacklistedPinnedIds.onNext(blackList)
-            TileSource.NEWS -> blacklistedNewsIds.onNext(blackList)
-            TileSource.SPORTS -> blacklistedSportsIds.onNext(blackList)
-            TileSource.MUSIC -> blacklistedMusicIds.onNext(blackList)
+            TileSource.BUNDLED -> blacklistedPinnedIds.value = blackList
+            TileSource.NEWS -> blacklistedNewsIds.value = blackList
+            TileSource.SPORTS -> blacklistedSportsIds.value = blackList
+            TileSource.MUSIC -> blacklistedMusicIds.value = blackList
             else -> Unit
         }
 
@@ -116,34 +152,11 @@ class ChannelRepo(
 
         _sharedPreferences.edit().putStringSet(sharedPrefKey, blackList.toSet()).apply()
     }
-
-    private val pinnedTiles = pinnedTileRepo.pinnedTiles
-        // This takes place off of the main thread because PinnedTile.toChannelTile needs
-        // to perform file access, and blocks to do so
-        .observeOn(Schedulers.io())
-        .map { tiles -> tiles.values.toList().map { it.toChannelTile(imageUtilityWrapper, formattedDomainWrapper) } }
-        .observeOn(AndroidSchedulers.mainThread())
-    private val blacklistedPinnedIds = BehaviorSubject.createDefault(loadBlackList(TileSource.BUNDLED))
-    private val bundledNewsTiles = Observable.just(ChannelContent.getNewsChannels())
-        .replay(1)
-        .autoConnect(0)
-    private val blacklistedNewsIds = BehaviorSubject.createDefault(loadBlackList(TileSource.NEWS))
-
-    private val bundledSportsTiles = Observable.just(ChannelContent.getSportsChannels())
-        .replay(1)
-        .autoConnect(0)
-    private val blacklistedSportsIds = BehaviorSubject.createDefault(loadBlackList(TileSource.SPORTS))
-
-    private val bundledMusicTiles = Observable.just(ChannelContent.getMusicChannels())
-        .replay(1)
-        .autoConnect(0)
-    private val blacklistedMusicIds = BehaviorSubject.createDefault(loadBlackList(TileSource.MUSIC))
 }
 
 @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-fun Observable<List<ChannelTile>>.filterNotBlacklisted(
-    blacklistIds: Observable<Set<String>>
-): Observable<List<ChannelTile>> {
-    return Observables.combineLatest(this, blacklistIds)
-        .map { (tiles, blacklistIds) -> tiles.filter { !blacklistIds.contains(it.id) } }
+fun Flow<List<ChannelTile>>.filterNotBlacklisted(
+    blacklistIds: StateFlow<Set<String>>
+): Flow<List<ChannelTile>> {
+    return combine(this, blacklistIds) { tiles, blacklistIds -> tiles.filter { !blacklistIds.contains(it.id) } }
 }

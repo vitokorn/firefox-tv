@@ -41,7 +41,7 @@ class ReceiveTabPreboardingActivity : AppCompatActivity() {
             @Suppress("DEPRECATION") // Couldn't work out a better way to do this. If you
             // think of one, please replace this
             (application as FirefoxApplication).mainActivityCommandBus
-                .onNext(MainActivity.Command.BEGIN_LOGIN)
+                .tryEmit(MainActivity.Command.BEGIN_LOGIN)
             finish()
         }
 

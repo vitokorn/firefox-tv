@@ -13,9 +13,10 @@ import android.preference.PreferenceManager
 import android.widget.Button
 import android.widget.TextView
 import androidx.annotation.VisibleForTesting
-import io.reactivex.Observable
-import io.reactivex.subjects.BehaviorSubject
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import mozilla.appservices.fxaclient.FxaServer
 import mozilla.components.service.fxa.ServerConfig
@@ -27,6 +28,7 @@ import mozilla.components.concept.sync.DeviceType
 import mozilla.components.concept.sync.OAuthAccount
 import mozilla.components.concept.sync.Profile
 import mozilla.components.concept.sync.DeviceConfig
+import mozilla.components.concept.sync.FxAEntryPoint
 import mozilla.components.service.fxa.manager.FxaAccountManager
 import mozilla.components.support.base.log.logger.Logger
 import mozilla.components.support.base.observer.Consumable
@@ -40,7 +42,6 @@ import org.atmofox.tv.telemetry.SentryIntegration
 import org.atmofox.tv.telemetry.TelemetryIntegration
 import org.atmofox.tv.utils.Settings
 import org.atmofox.tv.utils.URLs
-import java.util.concurrent.TimeUnit
 
 private val logger = Logger("FxaRepo")
 
@@ -87,18 +88,16 @@ class FxaRepo(
     @VisibleForTesting
     val accountObserver = FirefoxAccountObserver()
 
-    private val _accountState: BehaviorSubject<AccountState> = BehaviorSubject.createDefault(AccountState.Initial)
-    val accountState: Observable<AccountState> = _accountState.hide()
+    private val _accountState = MutableStateFlow<AccountState>(AccountState.Initial)
+    val accountState: StateFlow<AccountState> = _accountState.asStateFlow()
 
-    val receivedTabs: Observable<Consumable<FxaReceivedTab>> = Observable.empty()
+    val receivedTabs: kotlinx.coroutines.flow.Flow<Consumable<FxaReceivedTab>> = kotlinx.coroutines.flow.emptyFlow()
 
     init {
         accountManager.register(accountObserver)
 
         // initAsync() renamed to start() in v72+. Now a suspend function.
         GlobalScope.launch { accountManager.start() }
-
-        setupTelemetry()
     }
 
     fun logout() {
@@ -113,7 +112,10 @@ class FxaRepo(
     // beginAuthenticationAsync() renamed to beginAuthentication() in v72+. Returns String? directly (suspend).
     suspend fun beginLoginInternalAsync(): String? {
         // beginAuthentication() signature changed in 128.x - entrypoint required
-        return accountManager.beginAuthentication(entrypoint = "fxa_tv_login")
+        val entryPoint = object : FxAEntryPoint {
+            override val entryName = "fxa_tv_login"
+        }
+        return accountManager.beginAuthentication(entrypoint = entryPoint)
     }
 
     fun showFxaOnboardingScreen(context: Context) {
@@ -154,41 +156,22 @@ class FxaRepo(
         // pollForEventsAsync() removed in v56+. FxA now handles push events internally.
     }
 
-    @SuppressLint("CheckResult") // This survives for the duration of the app
-    private fun setupTelemetry() {
-        accountState
-            // Filter out intermediate states. E.g., when signing in, we see 'NotAuthenticated',
-            // then 'AuthenticatedWithProfile' and 'AuthenticatedNoProfile' in quick succession. We
-            // only want to use the final value here
-            //
-            // This can strip out useful information if a user signs in and then immediately either
-            // signs out or the app process is killed. These both seem like narrow edge cases. We
-            // use a debounce of 10 seconds here to cover any slow networks during the sign in
-            // process, under the assumption that 10 seconds is still narrow enough that those two
-            // edge cases will still be infrequently hit.
-            .debounce(10, TimeUnit.SECONDS)
-            .map { it is NeedsReauthentication }
-            .subscribe {
-                telemetryIntegration.doesFxaNeedReauthenticationEvent(it)
-            }
-    }
-
     /**
      * See [AccountState] kdoc for more explanation on states.
      */
     @VisibleForTesting
     inner class FirefoxAccountObserver : AccountObserver {
         override fun onAuthenticated(account: OAuthAccount, authType: AuthType) {
-            _accountState.onNext(AuthenticatedNoProfile)
+            _accountState.value = AuthenticatedNoProfile
             telemetryIntegration.fxaLoggedInEvent()
         }
 
         override fun onAuthenticationProblems() {
-            _accountState.onNext(NeedsReauthentication)
+            _accountState.value = NeedsReauthentication
         }
 
         override fun onLoggedOut() {
-            _accountState.onNext(NotAuthenticated)
+            _accountState.value = NotAuthenticated
             telemetryIntegration.fxaLoggedOutEvent()
         }
 
@@ -196,7 +179,7 @@ class FxaRepo(
          * This is called when the profile is first fetched after sign-in.
          */
         override fun onProfileUpdated(profile: Profile) {
-            _accountState.onNext(AuthenticatedWithProfile(profile.toDomainObject()))
+            _accountState.value = AuthenticatedWithProfile(profile.toDomainObject())
         }
     }
 

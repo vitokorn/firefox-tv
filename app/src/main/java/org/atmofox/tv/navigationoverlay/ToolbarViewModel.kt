@@ -7,10 +7,15 @@ package org.atmofox.tv.navigationoverlay
 import androidx.annotation.StringRes
 import androidx.annotation.UiThread
 import androidx.lifecycle.ViewModel
-import io.reactivex.BackpressureStrategy
-import io.reactivex.Observable
-import io.reactivex.rxkotlin.Observables
-import io.reactivex.subjects.BehaviorSubject
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import mozilla.components.support.base.observer.Consumable
 import org.atmofox.tv.R
 import org.atmofox.tv.channels.pinnedtile.PinnedTileRepo
@@ -45,10 +50,10 @@ class ToolbarViewModel(
     }
 
     // We use events in order to decouple the ViewModel from holding a reference to a context
-    private val _events = BehaviorSubject.create<Consumable<Action>>()
-    val events = _events.hide()
+    private val _events = MutableSharedFlow<Consumable<Action>>(extraBufferCapacity = 1)
+    val events: SharedFlow<Consumable<Action>> = _events.asSharedFlow()
 
-    val state: Observable<State> = Observables.combineLatest(sessionRepo.state, pinnedTileRepo.pinnedTiles) { sessionState, pinnedTiles ->
+    val state: StateFlow<State> = combine(sessionRepo.state, pinnedTileRepo.pinnedTiles) { sessionState, pinnedTiles ->
         fun isCurrentURLPinned() = pinnedTiles.containsKey(sessionState.currentUrl)
 
         ToolbarViewModel.State(
@@ -62,25 +67,35 @@ class ToolbarViewModel(
             desktopModeChecked = sessionState.desktopModeActive,
             urlBarText = UrlUtils.toUrlBarDisplay(sessionState.currentUrl)
         )
-    }
+    }.stateIn(viewModelScope, SharingStarted.Lazily, State(
+        backEnabled = false,
+        forwardEnabled = false,
+        refreshEnabled = false,
+        pinEnabled = false,
+        pinChecked = false,
+        turboChecked = false,
+        desktopModeEnabled = false,
+        desktopModeChecked = false,
+        urlBarText = ""
+    ))
 
     @UiThread
     fun backButtonClicked() {
-        sendOverlayClickTelemetry(NavigationEvent.BACK)
+        sendOverlayClickTelemetry()
         sessionRepo.attemptBack(forceYouTubeExit = true)
         hideOverlay()
     }
 
     @UiThread
     fun forwardButtonClicked() {
-        sendOverlayClickTelemetry(NavigationEvent.FORWARD)
+        sendOverlayClickTelemetry()
         sessionRepo.goForward()
         hideOverlay()
     }
 
     @UiThread
     fun reloadButtonClicked() {
-        sendOverlayClickTelemetry(NavigationEvent.RELOAD)
+        sendOverlayClickTelemetry()
         sessionRepo.reload()
         sessionRepo.pushCurrentValue()
         hideOverlay()
@@ -88,17 +103,17 @@ class ToolbarViewModel(
 
     @UiThread
     fun pinButtonClicked() {
-        val pinChecked = state.blockingFirst().pinChecked
-        val url = sessionRepo.state.blockingFirst().currentUrl
+        val pinChecked = state.value.pinChecked
+        val url = sessionRepo.state.value.currentUrl
 
-        sendOverlayClickTelemetry(NavigationEvent.PIN_ACTION, pinChecked = !pinChecked)
+        sendOverlayClickTelemetry()
 
         if (pinChecked) {
             pinnedTileRepo.removePinnedTile(url)
-            _events.onNext(Consumable.from(Action.ShowTopToast(R.string.notification_unpinned_site)))
+            _events.tryEmit(Consumable.from(Action.ShowTopToast(R.string.notification_unpinned_site)))
         } else {
             pinnedTileRepo.addPinnedTile(url, sessionRepo.currentURLScreenshot())
-            _events.onNext(Consumable.from(Action.ShowTopToast(R.string.notification_pinned_site)))
+            _events.tryEmit(Consumable.from(Action.ShowTopToast(R.string.notification_pinned_site)))
         }
         hideOverlay()
     }
@@ -115,15 +130,15 @@ class ToolbarViewModel(
             sessionRepo.reload()
         }
 
-        sendOverlayClickTelemetry(NavigationEvent.TURBO, turboChecked = !turboModeActive)
+        sendOverlayClickTelemetry()
         currentUrl.let { if (!it.isEqualToHomepage()) hideOverlay() }
     }
 
     @UiThread
     fun desktopModeButtonClicked() {
-        val desktopModeChecked = state.blockingFirst().desktopModeChecked
+        val desktopModeChecked = state.value.desktopModeChecked
 
-        sendOverlayClickTelemetry(NavigationEvent.DESKTOP_MODE, desktopModeChecked = !desktopModeChecked)
+        sendOverlayClickTelemetry()
 
         sessionRepo.setDesktopMode(!desktopModeChecked)
         val textId = when {
@@ -131,32 +146,23 @@ class ToolbarViewModel(
             else -> R.string.notification_request_desktop_site
         }
 
-        _events.onNext(Consumable.from(Action.ShowBottomToast(textId)))
+        _events.tryEmit(Consumable.from(Action.ShowBottomToast(textId)))
         hideOverlay()
     }
 
     @UiThread
     fun exitFirefoxButtonClicked() {
-        sendOverlayClickTelemetry(NavigationEvent.EXIT_FIREFOX)
-        _events.onNext(Consumable.from(Action.ExitFirefox))
+        sendOverlayClickTelemetry()
+        _events.tryEmit(Consumable.from(Action.ExitFirefox))
     }
 
-    private fun sendOverlayClickTelemetry(
-        event: NavigationEvent,
-        turboChecked: Boolean? = null,
-        pinChecked: Boolean? = null,
-        desktopModeChecked: Boolean? = null
-    ) {
-        // legacyState removed - telemetry disabled pending LiveDataReactiveStreams replacement
-    }
-
-    private fun sendOverlayClickTelemetry(event: NavigationEvent) {
+    private fun sendOverlayClickTelemetry() {
         // legacyState removed - telemetry disabled pending LiveDataReactiveStreams replacement
     }
 
     private fun String.isEqualToHomepage() = this == URLs.APP_URL_HOME || this == "data:text/html,<html></html>" || this.isEmpty()
 
     private fun hideOverlay() {
-        _events.onNext(Consumable.from(Action.SetOverlayVisible(false)))
+        _events.tryEmit(Consumable.from(Action.SetOverlayVisible(false)))
     }
 }

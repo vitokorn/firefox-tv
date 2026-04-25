@@ -9,11 +9,15 @@ import android.content.Context
 import android.os.StrictMode
 import androidx.annotation.VisibleForTesting
 import android.webkit.WebSettings
-import io.reactivex.subjects.PublishSubject
-import io.reactivex.subjects.Subject
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import mozilla.appservices.Megazord
 import mozilla.components.concept.engine.utils.EngineVersion
 import mozilla.components.lib.fetch.okhttp.OkHttpClient
+import coil.Coil
+import coil.ImageLoader
+import coil.memory.MemoryCache
 import mozilla.components.service.glean.Glean
 import mozilla.components.service.glean.config.Configuration
 import mozilla.components.service.glean.net.ConceptFetchHttpUploader
@@ -93,6 +97,16 @@ open class FirefoxApplication : LocaleAwareApplication() {
             visibilityLifeCycleCallback = VisibilityLifeCycleCallback(this).also {
                 registerActivityLifecycleCallbacks(it)
             }
+
+            // Configure Coil with reduced memory cache to limit footprint on low-RAM TV devices
+            val coilImageLoader = ImageLoader.Builder(this)
+                .memoryCache {
+                    MemoryCache.Builder(this)
+                        .maxSizePercent(0.1)
+                        .build()
+                }
+                .build()
+            Coil.setImageLoader(coilImageLoader)
         }
     }
 
@@ -182,11 +196,11 @@ open class FirefoxApplication : LocaleAwareApplication() {
         super.onLowMemory()
         OkHttpWrapper.onLowMemory()
         // sessionManager.onLowMemory() removed in v72+.
-        // If you need to dump more memory, you may be able to clear the Picasso cache.
+        Coil.imageLoader(this).memoryCache?.clear()
     }
 
     @Deprecated("Avoid using this bus whenever possible. Only use it if the alternatives are even worse")
-    val mainActivityCommandBus: Subject<MainActivity.Command> = PublishSubject.create()
+    val mainActivityCommandBus = MutableSharedFlow<MainActivity.Command>(extraBufferCapacity = 1)
 }
 
 private fun enableAndroidComponentsLogging() {

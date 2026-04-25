@@ -10,8 +10,7 @@ import android.util.Log
 import android.view.View
 import android.webkit.WebView
 import androidx.annotation.UiThread
-import io.reactivex.disposables.CompositeDisposable
-import io.reactivex.disposables.Disposable
+import kotlinx.coroutines.Job
 import mozilla.components.concept.engine.EngineView
 import mozilla.components.feature.session.SessionFeature
 import org.atmofox.tv.R
@@ -37,7 +36,7 @@ import java.util.Locale
 @Deprecated("Replaced by EngineViewCompose in Compose migration")
 abstract class EngineViewLifecycleFragment : LocaleAwareFragment() {
 
-    private val compositeDisposable = CompositeDisposable()
+    private val jobs = mutableListOf<Job>()
 
     /**
      * The [EngineView] in use by this fragment. If the value is non-null, the EngineView is present
@@ -50,7 +49,7 @@ abstract class EngineViewLifecycleFragment : LocaleAwareFragment() {
     private lateinit var sessionFeature: SessionFeature
 
     // TODO: https://github.com/mozilla-mobile/firefox-tv/issues/2053
-    abstract fun onEngineViewCreated(engineView: EngineView): Disposable?
+    abstract fun onEngineViewCreated(engineView: EngineView)
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -70,11 +69,16 @@ abstract class EngineViewLifecycleFragment : LocaleAwareFragment() {
         }
     }
 
+    protected fun addJob(job: Job) {
+        jobs.add(job)
+    }
+
     override fun onStop() {
         super.onStop()
         sessionFeature.stop()
 
-        compositeDisposable.clear()
+        jobs.forEach { it.cancel() }
+        jobs.clear()
 
         // NB: onStop unexpectedly calls onPause: see below.
         //
@@ -100,8 +104,7 @@ abstract class EngineViewLifecycleFragment : LocaleAwareFragment() {
 
         engineView?.apply {
             Log.d("EngineViewLifecycleFragment", "onStart: calling onEngineViewCreated")
-            val disposable = onEngineViewCreated(this)
-            disposable?.let { compositeDisposable.add(it) }
+            onEngineViewCreated(this)
 
             // NB: onStart unexpectedly calls onResume: see onStop for details.
             onResumeIfNotNull()

@@ -10,6 +10,9 @@ import android.net.http.SslError
 import android.view.InputDevice
 import android.view.KeyEvent
 import androidx.annotation.UiThread
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import mozilla.components.concept.sync.DeviceType
 import mozilla.components.service.glean.Glean
 import org.atmofox.tv.GleanMetrics.Telemetry as TelemetryMetrics
@@ -20,7 +23,6 @@ import org.atmofox.tv.channels.SettingsTile
 import org.atmofox.tv.channels.TileSource
 import org.atmofox.tv.ext.serviceLocator
 import org.atmofox.tv.fxa.FxaReceivedTab
-import org.atmofox.tv.navigationoverlay.NavigationEvent
 import org.atmofox.tv.utils.Assert
 import org.atmofox.tv.widget.InlineAutocompleteEditText.AutocompleteResult
 
@@ -172,7 +174,10 @@ open class TelemetryIntegration protected constructor(
 
         // We call reset in both startSession and stopSession. We call it here to make sure we
         // clean up before a new session if we crashed before stopSession.
-        resetSessionMeasurements(context)
+        // SharedPreferences I/O moved off the main thread to avoid ANR on cold start.
+        GlobalScope.launch(Dispatchers.IO) {
+            resetSessionMeasurements(context)
+        }
     }
 
     @UiThread // via TelemetryHomeTileUniqueClickPerSessionCounter
@@ -186,7 +191,9 @@ open class TelemetryIntegration protected constructor(
         // We call reset in both startSession and stopSession. We call it here to make sure we
         // don't persist the user's visited tile history on disk longer than strictly necessary.
         queueSessionMeasurements(context)
-        resetSessionMeasurements(context)
+        GlobalScope.launch(Dispatchers.IO) {
+            resetSessionMeasurements(context)
+        }
         sessionActive = false
     }
 
@@ -356,49 +363,6 @@ open class TelemetryIntegration protected constructor(
         recordTelemetryEvent("menu_unused")
     }
 
-    fun overlayClickEvent(
-        event: NavigationEvent,
-        isTurboButtonChecked: Boolean,
-        isPinButtonChecked: Boolean,
-        isDesktopModeButtonChecked: Boolean
-    ) {
-        when (event) {
-            NavigationEvent.BACK -> recordTelemetryEvent("overlay_back_click")
-            NavigationEvent.FORWARD -> recordTelemetryEvent("overlay_forward_click")
-            NavigationEvent.RELOAD -> recordTelemetryEvent("overlay_reload_click")
-            NavigationEvent.EXIT_FIREFOX -> recordTelemetryEvent("overlay_exit_click")
-
-            // For legacy reasons, turbo has different telemetry params so we special case it.
-            // Pin has a similar state change so we model it after turbo.
-            NavigationEvent.TURBO -> {
-                recordTelemetryEvent(
-                    "turbo_mode_change",
-                    enabled = boolToOnOff(isTurboButtonChecked)
-                )
-            }
-            NavigationEvent.PIN_ACTION -> {
-                recordTelemetryEvent(
-                    "pin_page_change",
-                    enabled = boolToOnOff(isPinButtonChecked),
-                    detail = boolToOnOff(isDesktopModeButtonChecked)
-                )
-            }
-            NavigationEvent.DESKTOP_MODE -> {
-                recordTelemetryEvent(
-                    "desktop_mode_change",
-                    enabled = boolToOnOff(isDesktopModeButtonChecked)
-                )
-            }
-
-            // Settings telemetry handled in a separate event
-            NavigationEvent.SETTINGS_DATA_COLLECTION, NavigationEvent.SETTINGS_CLEAR_COOKIES, NavigationEvent.SETTINGS_ABOUT -> return
-
-            // Load is handled in a separate event
-            NavigationEvent.LOAD_URL, NavigationEvent.LOAD_TILE -> return
-
-            NavigationEvent.FXA_BUTTON -> return // TODO: #2512 add telemetry for FxA login.
-        }
-    }
 
     /** The browser goes back from a controller press. */
     fun browserBackControllerEvent() {
@@ -529,7 +493,8 @@ private object TelemetryHomeTileUniqueClickPerSessionCounter {
     }
 
     fun resetSessionData(context: Context) {
-        Assert.isUiThread()
+        // Removed Assert.isUiThread(): SharedPreferences.apply() is thread-safe and this is
+        // now called from Dispatchers.IO during startSession to avoid main-thread blocking.
         getSharedPrefs(context).edit()
                 .remove(KEY_CLICKED_HOME_TILE_IDS_PER_SESSION)
                 .apply()
@@ -557,7 +522,8 @@ private object TelemetryRemoteControlTracker {
     }
 
     fun resetSessionData(context: Context) {
-        Assert.isUiThread()
+        // Removed Assert.isUiThread(): SharedPreferences.apply() is thread-safe and this is
+        // now called from Dispatchers.IO during startSession to avoid main-thread blocking.
         getSharedPrefs(context).edit()
                 .remove(KEY_REMOTE_CONTROL_NAME)
                 .apply()

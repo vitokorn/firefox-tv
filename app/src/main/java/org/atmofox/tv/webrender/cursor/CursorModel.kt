@@ -9,10 +9,19 @@ import android.graphics.PointF
 import android.view.KeyEvent
 import android.view.MotionEvent
 import androidx.annotation.CheckResult
-import io.reactivex.Observable
-import io.reactivex.rxkotlin.Observables
-import io.reactivex.subjects.BehaviorSubject
-import io.reactivex.subjects.PublishSubject
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
 import org.atmofox.tv.ScreenControllerStateMachine
 import org.atmofox.tv.ScreenControllerStateMachine.ActiveScreen.WEB_RENDER
 import org.atmofox.tv.ext.isKeyCodeSelect
@@ -85,68 +94,70 @@ sealed class CursorEvent {
  */
 @Suppress("LargeClass") // See kdoc above for details.
 class CursorModel(
-    activeScreen: Observable<ScreenControllerStateMachine.ActiveScreen>,
+    activeScreen: Flow<ScreenControllerStateMachine.ActiveScreen>,
     frameworkRepo: FrameworkRepo,
     sessionRepo: SessionRepo
 ) {
     // This is set early in the Fragment lifecycle. Most methods short if it is not available
     var screenBounds: PointF? = null
-    var webViewCouldScrollInDirectionProvider: ((Direction) -> Boolean)? = null
 
-    private val directionKeysPressed = mutableSetOf<Direction>().toObservableMutableSet().apply {
-        attachObserver { _isCursorMoving.onNext(this.isNotEmpty()) }
-    }
-
-    private var lastVelocity = 0f
-    private var lastUpdatedAtMS = LAST_UPDATE_AT_MS_UNSET
     private var lastKnownCursorPos = PointF(0f, 0f)
     private var isInitialCursorPositionSet = false
-
-    // This is a performance optimization to avoid allocation in the 60 FPS update loop. To prevent concurrent
-    // access, this property should only be used from calculateAndSendScrollEvent, which is safe to do because
-    // it's only called from the main thread.
+    private var lastVelocity = INITIAL_VELOCITY
+    private var lastUpdatedAtMS = LAST_UPDATE_AT_MS_UNSET
     private val scrollDistanceMutableCache = PointF(0f, 0f)
 
-    private val _cursorMovedEvents = PublishSubject.create<CursorEvent>()
-    /**
-     * These events are emitted VERY quickly. Be sure to throttle them!
-     */
-    val cursorMovedEvents: Observable<CursorEvent> = _cursorMovedEvents.hide()
-
-    private val _scrollRequests = PublishSubject.create<PointF>()
-    val scrollRequests: Observable<PointF> = _scrollRequests.hide()
-
-    private val _isCursorMoving = BehaviorSubject.createDefault<Boolean>(false)
-
-    private val _isSelectPressed = BehaviorSubject.createDefault<Boolean>(false)
-    val isSelectPressed: Observable<Boolean> = _isSelectPressed.hide()
-            .distinctUntilChanged()
-
-    val isAnyCursorKeyPressed: Observable<Boolean> = Observables.combineLatest(_isCursorMoving, isSelectPressed) {
-        // Only emit false if we are both stationary and not pressed
-        moving, pressed -> moving || pressed
+    private val directionKeysPressed = mutableSetOf<Direction>().toObservableMutableSet().apply {
+        attachObserver { _isAnyCursorKeyPressed.value = this.isNotEmpty() }
     }
-    .distinctUntilChanged()
+    private val _isAnyCursorKeyPressed = MutableStateFlow(false)
+    val isAnyCursorKeyPressed: StateFlow<Boolean> = _isAnyCursorKeyPressed.asStateFlow()
 
-    val isCursorEnabledForAppState: Observable<Boolean> = Observables.combineLatest(
-            activeScreen,
-            frameworkRepo.isVoiceViewEnabled,
-            sessionRepo.state
-    ) { activeScreen, isVoiceViewEnabled, sessionState ->
-        // We only display the cursor when the web content is active.
-        val isWebRenderActive = activeScreen == WEB_RENDER
-        val doesWebpageHaveOwnNavControls = sessionState.currentUrl.isUriYouTubeTV ||
-            sessionState.currentUrl.isUriFxaSignIn ||
-            isVoiceViewEnabled
-        isWebRenderActive && !doesWebpageHaveOwnNavControls
+    private val _cursorMovedEvents = MutableSharedFlow<CursorEvent>(extraBufferCapacity = 1)
+    val cursorMovedEvents: SharedFlow<CursorEvent> = _cursorMovedEvents.asSharedFlow()
+
+    private val _scrollRequests = MutableSharedFlow<PointF>(extraBufferCapacity = 1)
+    val scrollRequests: SharedFlow<PointF> = _scrollRequests.asSharedFlow()
+
+    private val _isCursorMoving = MutableStateFlow(false)
+    val isCursorMoving: StateFlow<Boolean> = _isCursorMoving.asStateFlow()
+
+    private val _isSelectPressed = MutableStateFlow(false)
+    val isSelectPressed: StateFlow<Boolean> = _isSelectPressed.asStateFlow()
+
+    var webViewCouldScrollInDirectionProvider: (Direction) -> Boolean = { false }
+
+    var simulateTouchEvent: (MotionEvent) -> Unit = { throw NotImplementedError("You must set simulateTouchEvent") }
+
+    // Note that we only redraw the cursor when it's enabled. For a theoretical optimization, we could
+    // defer cursor drawing when we scroll, but this would require keeping track of when a scroll ends
+    // and this is complex. As such, we just redraw at 60FPS instead.
+    val isCursorEnabledForAppState = combine(
+        activeScreen,
+        frameworkRepo.isVoiceViewEnabled,
+        sessionRepo.state
+    ) { activeScreen, isVoiceViewEnabled, sessionRepoState ->
+        activeScreen == WEB_RENDER && !isVoiceViewEnabled && sessionRepoState?.loading == false &&
+                !sessionRepoState.currentUrl.isUriFxaSignIn && !sessionRepoState.currentUrl.isUriYouTubeTV
+    }.stateIn(GlobalScope, SharingStarted.Eagerly, false)
+
+    init { attachResetStateObserver() }
+
+    private fun attachResetStateObserver() {
+        isCursorEnabledForAppState
+                .onEach { enabled ->
+                    if (!enabled) {
+                        directionKeysPressed.clear()
+                        _isCursorMoving.value = false
+                        _isSelectPressed.value = false
+                        lastKnownCursorPos = PointF(0f, 0f)
+                        isInitialCursorPositionSet = false
+                    }
+                }
+                .launchIn(GlobalScope)
     }
 
-    init {
-        attachResetStateObserver()
-    }
-
-    // Note: we may not get an ACTION_UP event if the cursor is disabled while a button is held down.
-    @CheckResult(suggest = "Recycle any MotionEvents after use") // via handleSelectKeyEvent.
+    @CheckResult(suggest = "#filterMapToDirection or handle in a switch statement")
     fun handleKeyEvent(event: KeyEvent): HandleKeyEventResult {
         return when {
             event.isKeyCodeSelect -> handleSelectKeyEvent(event)
@@ -159,7 +170,7 @@ class CursorModel(
         fun getResult(wasKeyEventConsumed: Boolean) =
             HandleKeyEventResult(wasKeyEventConsumed, simulatedTouch = null)
 
-        if (!isCursorEnabledForAppState.blockingFirst()) {
+        if (!isCursorEnabledForAppState.value) {
             return getResult(false)
         }
         require(Direction.KEY_CODES.contains(event.keyCode)) {
@@ -192,7 +203,7 @@ class CursorModel(
             CursorEvent.CursorMoved(direction)
         }
 
-        _cursorMovedEvents.onNext(event)
+        _cursorMovedEvents.tryEmit(event)
     }
 
     @SuppressLint("Recycle") // Caller is expected to recycle the MotionEvent.
@@ -201,7 +212,7 @@ class CursorModel(
         fun getResult(motionEvent: MotionEvent?) =
             HandleKeyEventResult(wasKeyEventConsumed = motionEvent != null, simulatedTouch = motionEvent)
 
-        if (!isCursorEnabledForAppState.blockingFirst()) {
+        if (!isCursorEnabledForAppState.value) {
             return getResult(null)
         }
 
@@ -214,11 +225,11 @@ class CursorModel(
 
         val motionEvent = when (event.action) {
             KeyEvent.ACTION_UP -> {
-                _isSelectPressed.onNext(false)
+                _isSelectPressed.value = false
                 buildMotionEvent()
             }
             KeyEvent.ACTION_DOWN -> {
-                _isSelectPressed.onNext(true)
+                _isSelectPressed.value = true
                 buildMotionEvent()
             }
             else -> null
@@ -273,7 +284,7 @@ class CursorModel(
         val approxFramesPassed = (millisPassed / MS_PER_FRAME).toInt()
         getScrollDistance(scrollDistanceMutableCache, velocity, newPos, approxFramesPassed) // mutates scrollDistance...
         if (scrollDistanceMutableCache.x != 0f || scrollDistanceMutableCache.y != 0f) {
-            _scrollRequests.onNext(scrollDistanceMutableCache)
+            _scrollRequests.tryEmit(scrollDistanceMutableCache)
         }
     }
 
@@ -369,10 +380,4 @@ class CursorModel(
         scrollDistanceReturnValue.y = (scrollVelY * MAX_SCROLL_VELOCITY * framesPassed)
     }
 
-    @SuppressLint("CheckResult") // Does not need to be disposed as this survives for the duration of the app
-    private fun attachResetStateObserver() {
-        isCursorEnabledForAppState.subscribe { isCursorActive ->
-            if (!isCursorActive) resetCursorState()
-        }
-    }
 }

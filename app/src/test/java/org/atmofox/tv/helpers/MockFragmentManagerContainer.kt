@@ -4,27 +4,11 @@
 
 package org.atmofox.tv.helpers
 
-import androidx.fragment.app.FragmentManager
-import io.mockk.every
-import io.mockk.mockk
-import org.atmofox.tv.navigationoverlay.NavigationOverlayFragment
-import org.atmofox.tv.webrender.WebRenderFragment
+import org.atmofox.tv.ScreenControllerStateMachine.ActiveScreen
 
 /**
- * A data container for a mocked [FragmentManager] which returns fragments specific to this app,
- * such as the [NavigationOverlayFragment].
+ * Stub container for Compose migration. Fragment references removed.
  */
 class MockFragmentManagerContainer {
-
-    val navigationOverlayFragment: NavigationOverlayFragment = mockk(relaxed = true)
-    val webRenderFragment: WebRenderFragment = mockk(relaxed = true)
-
-    val fragmentManager: FragmentManager = mockk<FragmentManager>().apply {
-        initFindFragmentByTag()
-    }
-
-    private fun FragmentManager.initFindFragmentByTag() {
-        every { findFragmentByTag(NavigationOverlayFragment.FRAGMENT_TAG) } returns navigationOverlayFragment
-        every { findFragmentByTag(WebRenderFragment.FRAGMENT_TAG) } returns webRenderFragment
-    }
+    val currentActiveScreen: ActiveScreen = ActiveScreen.WEB_RENDER
 }

@@ -6,7 +6,6 @@ package org.atmofox.tv.framework
 
 import android.view.accessibility.AccessibilityManager
 import android.view.accessibility.AccessibilityManager.TouchExplorationStateChangeListener
-import io.reactivex.observers.TestObserver
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -18,7 +17,6 @@ import kotlin.properties.Delegates
 class FrameworkRepoTest {
 
     private lateinit var repo: FrameworkRepo
-    private lateinit var isVoiceViewEnabledTestObs: TestObserver<Boolean>
 
     // Different variants for different tests.
     private lateinit var accessibilityManager: AccessibilityManager
@@ -26,9 +24,7 @@ class FrameworkRepoTest {
 
     @Before
     fun setUp() {
-        repo = FrameworkRepo().also {
-            isVoiceViewEnabledTestObs = it.isVoiceViewEnabled.test()
-        }
+        repo = FrameworkRepo()
 
         accessibilityManager = mock(AccessibilityManager::class.java)
         touchExplorationA11yManagerWrapper = MockTouchExplorationA11yManagerWrapper()
@@ -41,7 +37,7 @@ class FrameworkRepoTest {
         }
 
         repo.init(accessibilityManager)
-        isVoiceViewEnabledTestObs.assertValue(false)
+        assertEquals(false, repo.isVoiceViewEnabled.value)
     }
 
     @Test
@@ -51,7 +47,7 @@ class FrameworkRepoTest {
         }
 
         repo.init(accessibilityManager)
-        assertEquals(true, isVoiceViewEnabledTestObs.values().last())
+        assertEquals(true, repo.isVoiceViewEnabled.value)
     }
 
     @Test
@@ -61,11 +57,11 @@ class FrameworkRepoTest {
         // To ensure the emission change logic is working, we make sure to test
         // in both directions irrespective of the initial value.
         val defaultValue = touchExplorationA11yManagerWrapper.isTouchExplorationStateEnabled
-        isVoiceViewEnabledTestObs.assertValue(defaultValue)
+        assertEquals(defaultValue, repo.isVoiceViewEnabled.value)
 
         arrayOf(false, true, false).forEachIndexed { index, expected ->
             touchExplorationA11yManagerWrapper.isTouchExplorationStateEnabled = expected
-            assertEquals("index: $index", expected, isVoiceViewEnabledTestObs.values().last())
+            assertEquals("index: $index", expected, repo.isVoiceViewEnabled.value)
         }
     }
 

@@ -5,12 +5,12 @@
 package org.atmofox.tv.fxa
 
 import android.net.Uri
-import androidx.fragment.app.FragmentManager
-import io.reactivex.Observable
-import io.reactivex.subjects.PublishSubject
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import mozilla.components.concept.sync.AuthType
 import mozilla.components.service.fxa.FxaAuthData
@@ -47,14 +47,14 @@ class FxaLoginUseCase(
     private val sentryIntegration: SentryIntegration = SentryIntegration
 ) {
 
-    private val _onLoginSuccess = PublishSubject.create<Unit>()
-    val onLoginSuccess: Observable<Unit> = _onLoginSuccess.hide()
+    private val _onLoginSuccess = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val onLoginSuccess: SharedFlow<Unit> = _onLoginSuccess.asSharedFlow()
 
     /**
      * Opens the browser screen and loads the FxA login URL to begin the login flow.
      */
     @OptIn(DelicateCoroutinesApi::class)
-    fun beginLogin(fragmentManager: FragmentManager) {
+    fun beginLogin() {
         // TODO: should we throw an error if we're already authenticated when this is called?
         GlobalScope.launch(Dispatchers.Main) { // main thread: we modify UI state.
             // a-c#3713: this await will never resume if the user is already logged in.
@@ -68,7 +68,7 @@ class FxaLoginUseCase(
             }
 
             // TODO: if user is already signing in, we should consider not reloading the page.
-            screenController.showBrowserScreenForUrl(fragmentManager, loginUri)
+            screenController.showBrowserScreenForUrl(loginUri)
         }
     }
 
@@ -77,7 +77,7 @@ class FxaLoginUseCase(
         attachFxaLoginSuccessObserver()
     }
 
-    @Suppress("CheckResult") // no need to dispose: sessionRepo is active for the duration of the app.
+    // no need to cancel: sessionRepo is active for the duration of the app.
     private fun attachFxaLoginSuccessObserver() {
         fun isLoginSuccessUri(uri: String): Boolean = uri.startsWith(FxaRepo.REDIRECT_URI)
 
@@ -89,30 +89,23 @@ class FxaLoginUseCase(
             return if (code != null && state != null) LoginSuccessKeys(authType = authType, code = code, state = state) else null
         }
 
-        fun Observable<String>.filterMapLoginSuccessKeys(): Observable<LoginSuccessKeys> =
-            this.flatMap { url ->
-                val loginSuccessKeys = extractLoginSuccessKeys(url)
-
-                if (loginSuccessKeys != null) {
-                    Observable.just(loginSuccessKeys)
-                } else {
-                    // Since we received a login success URL, this is never expected. However, since this action is
-                    // controlled by a server, we don't want to crash the app so we log to Sentry instead.
-                    sentryIntegration.captureAndLogError(
-                        logger, IllegalStateException("Received success URI but success keys cannot be found"))
-                    Observable.empty()
+        GlobalScope.launch {
+            sessionRepo.state
+                .collect { state ->
+                    val url = state?.currentUrl ?: return@collect
+                    if (!isLoginSuccessUri(url)) return@collect
+                    val loginSuccessKeys = extractLoginSuccessKeys(url)
+                    if (loginSuccessKeys != null) {
+                        fxaRepo.accountManager.finishAuthentication(loginSuccessKeys.toFxaAuthData())
+                        _onLoginSuccess.tryEmit(Unit)
+                    } else {
+                        // Since we received a login success URL, this is never expected. However, since this action is
+                        // controlled by a server, we don't want to crash the app so we log to Sentry instead.
+                        sentryIntegration.captureAndLogError(
+                            logger, IllegalStateException("Received success URI but success keys cannot be found"))
+                    }
                 }
-            }
-
-        sessionRepo.state
-            .map { it.currentUrl }
-            .distinctUntilChanged()
-            .filter { isLoginSuccessUri(it) }
-            .filterMapLoginSuccessKeys()
-            .subscribe { loginSuccessKeys ->
-                GlobalScope.launch { fxaRepo.accountManager.finishAuthentication(loginSuccessKeys.toFxaAuthData()) }
-                _onLoginSuccess.onNext(Unit)
-            }
+        }
     }
 
     private data class LoginSuccessKeys(val authType: AuthType, val code: String, val state: String)

@@ -18,10 +18,11 @@ import android.widget.TextView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import io.reactivex.Observable
-import io.reactivex.subjects.Subject
-import io.reactivex.subjects.PublishSubject
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import org.atmofox.tv.R
+import org.atmofox.tv.channels.pinnedtile.PinnedTilePlaceholderGenerator
 
 val DIFF_CALLBACK = object : DiffUtil.ItemCallback<ChannelTile>() {
     override fun areItemsTheSame(oldTile: ChannelTile, newTile: ChannelTile): Boolean {
@@ -42,14 +43,14 @@ class DefaultChannelAdapter(
     private val channelConfig: ChannelConfig
 ) : ListAdapter<ChannelTile, DefaultChannelTileViewHolder>(DIFF_CALLBACK) {
 
-    private val _removeEvents: Subject<ChannelTile> = PublishSubject.create<ChannelTile>()
-    val removeEvents: Observable<ChannelTile> = _removeEvents.hide()
+    private val _removeEvents = MutableSharedFlow<ChannelTile>(extraBufferCapacity = 1)
+    val removeEvents: Flow<ChannelTile> = _removeEvents.asSharedFlow()
 
-    private val _focusChangeObservable = PublishSubject.create<Pair<Int, Boolean>>()
+    private val _focusChangeObservable = MutableSharedFlow<Pair<Int, Boolean>>(extraBufferCapacity = 1)
     /**
      * Emits upon focus change events.  Sends Pair of tile index to focusGained
      */
-    val focusChangeObservable: Observable<Pair<Int, Boolean>> = _focusChangeObservable.hide()
+    val focusChangeObservable: Flow<Pair<Int, Boolean>> = _focusChangeObservable.asSharedFlow()
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): DefaultChannelTileViewHolder {
         val inflater = LayoutInflater.from(parent.context)
@@ -93,7 +94,15 @@ class DefaultChannelAdapter(
                 val channelCardView: View = itemView.findViewById(R.id.channel_cardview)
                 channelCardView.stateListAnimator = animation
                 channelCardView.foreground = focusRingDrawable
-                _focusChangeObservable.onNext(position to hasFocus)
+
+                // Slight rotation for custom tiles (sites not in the bundled list)
+                if (tile.tileSource == TileSource.CUSTOM) {
+                    channelCardView.rotation = PinnedTilePlaceholderGenerator.rotationForUrl(tile.url)
+                } else {
+                    channelCardView.rotation = 0f
+                }
+
+                _focusChangeObservable.tryEmit(position to hasFocus)
                 channelConfig.onFocusTelemetry?.invoke(tile, hasFocus)
             }
         }
@@ -111,7 +120,7 @@ class DefaultChannelAdapter(
 
             titleText.text = tile.generateRemoveTileTitleStr(context)
             removeTileButton.setOnClickListener {
-                _removeEvents.onNext(tile)
+                _removeEvents.tryEmit(tile)
                 dialog.dismiss()
             }
 

@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.atmofox.tv.compose.theme.PhotonBlue50
 import org.atmofox.tv.compose.theme.TvGray2
-import org.atmofox.tv.compose.utils.collectAsState
+import androidx.compose.runtime.collectAsState
 import org.atmofox.tv.ext.serviceLocator
 import org.atmofox.tv.utils.URLs
 import org.atmofox.tv.utils.UrlUtils

@@ -80,8 +80,8 @@ class EngineViewCache(private val sessionRepo: SessionRepo) : LifecycleObserver 
 
     fun getEngineView(
         context: Context,
-        attrs: AttributeSet,
-        initialize: GeckoEngineView.() -> Unit
+        attrs: AttributeSet? = null,
+        initialize: GeckoEngineView.() -> Unit = {}
     ): GeckoEngineView {
         fun View?.removeFromParentIfAble() {
             // If the WebView has already been added to the view hierarchy, we

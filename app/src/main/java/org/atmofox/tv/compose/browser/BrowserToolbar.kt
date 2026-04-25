@@ -39,12 +39,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -56,7 +62,7 @@ import org.atmofox.tv.compose.theme.Ink80
 import org.atmofox.tv.compose.theme.PhotonBlue50
 import org.atmofox.tv.compose.theme.PhotonGrey10
 import org.atmofox.tv.compose.theme.PhotonGrey40
-import org.atmofox.tv.compose.utils.collectAsState
+import androidx.compose.runtime.collectAsState
 import org.atmofox.tv.ext.serviceLocator
 import org.atmofox.tv.utils.URLs
 import org.atmofox.tv.utils.UrlUtils
@@ -78,20 +84,9 @@ fun BrowserToolbar(
     val sessionRepo = serviceLocator.sessionRepo
     val pinnedTileRepo = serviceLocator.pinnedTileRepo
 
-    val currentState = sessionRepo.currentState()
-    val state by sessionRepo.state.collectAsState(
-        initial = currentState
-            ?: org.atmofox.tv.session.SessionRepo.State(
-                backEnabled = false,
-                forwardEnabled = false,
-                desktopModeActive = false,
-                turboModeActive = false,
-                currentUrl = URLs.APP_URL_HOME,
-                loading = false
-            )
-    )
+    val state by sessionRepo.state.collectAsState()
 
-    val pinnedTiles by pinnedTileRepo.pinnedTiles.collectAsState(initial = linkedMapOf<String, PinnedTile>())
+    val pinnedTiles by pinnedTileRepo.pinnedTiles.collectAsState()
     val isCurrentUrlPinned = pinnedTiles.containsKey(state.currentUrl)
     val isHomepage = state.currentUrl == URLs.APP_URL_HOME ||
             state.currentUrl == "data:text/html,<html></html>" ||
@@ -160,6 +155,27 @@ fun BrowserToolbar(
                 .padding(horizontal = 10.dp, vertical = 8.dp)
                 .onFocusChanged { focusState ->
                     isUrlFocused = focusState.isFocused
+                }
+                .onPreviewKeyEvent { keyEvent ->
+                    if (isUrlFocused && keyEvent.type == KeyEventType.KeyDown &&
+                        (keyEvent.key == Key.DirectionLeft || keyEvent.key == Key.DirectionRight)
+                    ) {
+                        true
+                    } else if (isUrlFocused && keyEvent.type == KeyEventType.KeyDown &&
+                        (keyEvent.key == Key.Enter || keyEvent.key == Key.NumPadEnter)
+                    ) {
+                        if (urlText.isNotEmpty() && urlText != URLs.APP_URL_HOME) {
+                            val url = if (UrlUtils.isUrl(urlText)) {
+                                urlText
+                            } else {
+                                UrlUtils.createSearchUrl(context, urlText)
+                            }
+                            serviceLocator.sessionUseCases.loadUrl.invoke(url)
+                        }
+                        true
+                    } else {
+                        false
+                    }
                 },
             singleLine = true,
             textStyle = TextStyle(
@@ -338,8 +354,10 @@ private fun TooltipButton(
 
         // Tooltip popup shown below button without affecting layout
         if (isFocused) {
+            val tooltipOffset = with(LocalDensity.current) { 54.dp.roundToPx() }
             Popup(
-                alignment = Alignment.BottomCenter,
+                alignment = Alignment.TopCenter,
+                offset = IntOffset(0, tooltipOffset),
                 properties = PopupProperties(focusable = false)
             ) {
                 Text(
@@ -347,7 +365,6 @@ private fun TooltipButton(
                     color = PhotonGrey10,
                     fontSize = 10.sp,
                     modifier = Modifier
-                        .padding(top = 52.dp)
                         .background(Color.Black.copy(alpha = 0.8f), RoundedCornerShape(2.dp))
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 )

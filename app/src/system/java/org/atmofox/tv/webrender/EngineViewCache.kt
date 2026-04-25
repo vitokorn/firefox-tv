@@ -53,8 +53,8 @@ class EngineViewCache(private val sessionRepo: SessionRepo) : LifecycleObserver 
 
     fun getEngineView(
         context: Context,
-        attrs: AttributeSet,
-        initialize: SystemEngineView.() -> Unit
+        attrs: AttributeSet? = null,
+        initialize: SystemEngineView.() -> Unit = {}
     ): SystemEngineView {
         fun View?.removeFromParentIfAble() {
             // If the WebView has already been added to the view hierarchy, we

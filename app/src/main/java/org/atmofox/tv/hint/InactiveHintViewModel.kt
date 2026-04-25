@@ -4,12 +4,13 @@
 
 package org.atmofox.tv.hint
 
-import io.reactivex.Observable
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 
 /**
  * Used when a user is part of an experiment that does not show the hint bar
  */
 class InactiveHintViewModel : HintViewModel {
-    override val isDisplayed: Observable<Boolean> = Observable.just(false)
-    override val hints: Observable<List<HintContent>> = Observable.just(listOf())
+    override val isDisplayed: Flow<Boolean> = flowOf(false)
+    override val hints: Flow<List<HintContent>> = flowOf(listOf())
 }

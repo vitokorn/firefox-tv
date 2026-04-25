@@ -3,28 +3,25 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.atmofox.tv.components.locale;
+package org.atmofox.tv.components.locale
 
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
-import android.content.SharedPreferences;
-import android.content.res.Configuration;
-import android.content.res.Resources;
-import android.os.Build;
-import android.preference.PreferenceManager;
-import androidx.annotation.NonNull;
-import android.util.Log;
-
-import io.sentry.Sentry;
-import org.atmofox.tv.R;
-import org.atmofox.tv.generated.LocaleList;
-
-import java.util.Collection;
-import java.util.Locale;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.SharedPreferences
+import android.content.res.Configuration
+import android.content.res.Resources
+import android.os.Build
+import android.preference.PreferenceManager
+import android.util.Log
+import androidx.annotation.NonNull
+import io.sentry.Sentry
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
+import org.atmofox.tv.R
+import org.atmofox.tv.generated.LocaleList
+import java.util.Locale
 
 /**
  * This class manages persistence, application, and otherwise handling of
@@ -38,102 +35,64 @@ import java.util.concurrent.atomic.AtomicReference;
  * * It's lazy.
  * * It relies on using the SharedPreferences file owned by the app for performance.
  */
-public class LocaleManager {
-    private static final String LOG_TAG = "GeckoLocales";
+class LocaleManager private constructor() {
 
-    private static String PREF_LOCALE = null;
+    private val LOG_TAG = "GeckoLocales"
 
-    private static final String FALLBACK_LOCALE_TAG = "en-US";
+    @Volatile
+    private var currentLocale: Locale? = null
 
-    // These are volatile because we don't impose restrictions
-    // over which thread calls our methods.
-    private volatile Locale currentLocale;
-    private volatile Locale systemLocale = Locale.getDefault();
+    @Volatile
+    private var systemLocale: Locale = Locale.getDefault()
 
-    private final AtomicBoolean inited = new AtomicBoolean(false);
-    private boolean systemLocaleDidChange;
-    private BroadcastReceiver receiver;
+    private val inited = AtomicBoolean(false)
+    private var systemLocaleDidChange = false
+    private var receiver: BroadcastReceiver? = null
 
-    private static final AtomicReference<LocaleManager> instance = new AtomicReference<LocaleManager>();
-
-    public static LocaleManager getInstance() {
-        LocaleManager localeManager = instance.get();
-        if (localeManager != null) {
-            return localeManager;
-        }
-
-        localeManager = new LocaleManager();
-        if (instance.compareAndSet(null, localeManager)) {
-            return localeManager;
-        } else {
-            return instance.get();
-        }
-    }
-
-    /**
-     * Ensure that you call this early in your application startup,
-     * and with a context that's sufficiently long-lived (typically
-     * the application context).
-     *
-     * Calling multiple times is harmless.
-     */
-    public void initialize(final Context context) {
+    fun initialize(context: Context) {
         if (!inited.compareAndSet(false, true)) {
-            return;
+            return
         }
 
-        receiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                final Locale current = systemLocale;
+        receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                val current = systemLocale
 
                 // We don't trust Locale.getDefault() here, because we make a
                 // habit of mutating it! Use the one Android supplies, because
                 // that gets regularly reset.
                 // The default value of systemLocale is fine, because we haven't
                 // yet swizzled Locale during static initialization.
-                systemLocale = context.getResources().getConfiguration().locale;
-                systemLocaleDidChange = true;
+                systemLocale = context.resources.configuration.locale
+                systemLocaleDidChange = true
 
-                Log.d(LOG_TAG, "System locale changed from " + current + " to " + systemLocale);
+                Log.d(LOG_TAG, "System locale changed from $current to $systemLocale")
             }
-        };
-        context.registerReceiver(receiver, new IntentFilter(Intent.ACTION_LOCALE_CHANGED));
+        }
+        context.registerReceiver(receiver, IntentFilter(Intent.ACTION_LOCALE_CHANGED))
     }
 
-    public boolean systemLocaleDidChange() {
-        return systemLocaleDidChange;
+    fun systemLocaleDidChange(): Boolean {
+        return systemLocaleDidChange
     }
 
     /**
      * Every time the system gives us a new configuration, it
      * carries the external locale. Fix it.
      */
-    public void correctLocale(Context context, Resources res, Configuration config) {
-        final Locale current = getCurrentLocale(context);
+    fun correctLocale(context: Context, res: Resources, config: Configuration) {
+        val current = getCurrentLocale(context)
         if (current == null) {
-            Log.d(LOG_TAG, "No selected locale. No correction needed.");
-            return;
+            Log.d(LOG_TAG, "No selected locale. No correction needed.")
+            return
         }
 
-        // I know it's tempting to short-circuit here if the config seems to be
-        // up-to-date, but the rest is necessary.
+        config.locale = current
 
-        config.locale = current;
+        Locale.setDefault(current)
 
-        // The following two lines are heavily commented in case someone
-        // decides to chase down performance improvements and decides to
-        // question what's going on here.
-        // Both lines should be cheap, *but*...
-
-        // This is unnecessary for basic string choice, but it almost
-        // certainly comes into play when rendering numbers, deciding on RTL,
-        // etc. Take it out if you can prove that's not the case.
-        Locale.setDefault(current);
-
-        // This seems to be a no-op, but every piece of documentation under the
-        // sun suggests that it's necessary, and it certainly makes sense.
-        res.updateConfiguration(config, null);
+        @Suppress("DEPRECATION")
+        res.updateConfiguration(config, null)
     }
 
     /**
@@ -161,43 +120,40 @@ public class LocaleManager {
      * The caller is expected to redisplay themselves accordingly.
      *
      * This method is intended to be called from inside
-     * <code>onConfigurationChanged(Configuration)</code> as part of a strategy
+     * `onConfigurationChanged(Configuration)` as part of a strategy
      * to detect and either apply or undo system locale changes.
      */
-    public Locale onSystemConfigurationChanged(final Context context, final Resources resources, final Configuration configuration, final Locale currentActivityLocale) {
+    fun onSystemConfigurationChanged(context: Context, resources: Resources, configuration: Configuration, currentActivityLocale: Locale): Locale? {
         if (!isMirroringSystemLocale(context)) {
-            correctLocale(context, resources, configuration);
+            correctLocale(context, resources, configuration)
         }
 
-        final Locale changed = configuration.locale;
-        if (changed.equals(currentActivityLocale)) {
-            return null;
+        val changed = configuration.locale
+        return if (changed == currentActivityLocale) {
+            null
+        } else {
+            changed
         }
-
-        return changed;
     }
 
-    public String getAndApplyPersistedLocale(Context context) {
-        initialize(context);
+    fun getAndApplyPersistedLocale(context: Context): String? {
+        initialize(context)
 
-        final long t1 = android.os.SystemClock.uptimeMillis();
-        final String localeCode = getPersistedLocale(context);
+        val t1 = android.os.SystemClock.uptimeMillis()
+        val localeCode = getPersistedLocale(context)
         if (localeCode == null) {
-            return null;
+            return null
         }
 
-        // Note that we don't tell Gecko about this. We notify Gecko when the
-        // locale is set, not when we update Java.
-        final String resultant = updateLocale(context, localeCode);
+        val resultant = updateLocale(context, localeCode)
 
         if (resultant == null) {
-            // Update the configuration anyway.
-            updateConfiguration(context, currentLocale);
+            updateConfiguration(context, currentLocale)
         }
 
-        final long t2 = android.os.SystemClock.uptimeMillis();
-        Log.i(LOG_TAG, "Locale read and update took: " + (t2 - t1) + "ms.");
-        return resultant;
+        val t2 = android.os.SystemClock.uptimeMillis()
+        Log.i(LOG_TAG, "Locale read and update took: ${t2 - t1}ms.")
+        return resultant
     }
 
     /**
@@ -205,32 +161,22 @@ public class LocaleManager {
      *
      * Always persists and notifies Gecko.
      */
-    public String setSelectedLocale(Context context, String localeCode) {
-        final String resultant = updateLocale(context, localeCode);
-
-        // We always persist and notify Gecko, even if nothing seemed to
-        // change. This might happen if you're picking a locale that's the same
-        // as the current OS locale. The OS locale might change next time we
-        // launch, and we need the Gecko pref and persisted locale to have been
-        // set by the time that happens.
-        persistLocale(context, localeCode);
-
-        return resultant;
+    fun setSelectedLocale(context: Context, localeCode: String): String? {
+        val resultant = updateLocale(context, localeCode)
+        persistLocale(context, localeCode)
+        return resultant
     }
 
-    public void resetLocaleIfChanged(Context context) {
+    fun resetLocaleIfChanged(context: Context) {
         if (currentLocale != systemLocale) {
-            resetToSystemLocale(context);
+            resetToSystemLocale(context)
         }
     }
 
-    public void resetToSystemLocale(Context context) {
-        // Wipe the pref.
-        final SharedPreferences settings = getSharedPreferences(context);
-        settings.edit().remove(PREF_LOCALE).apply();
-
-        // Apply the system locale.
-        updateLocale(context, systemLocale);
+    fun resetToSystemLocale(context: Context) {
+        val settings = getSharedPreferences(context)
+        settings.edit().remove(PREF_LOCALE).apply()
+        updateLocale(context, systemLocale)
     }
 
     /**
@@ -238,43 +184,43 @@ public class LocaleManager {
      * current locale to be applied if necessary (e.g., when
      * a new activity launches).
      */
-    public void updateConfiguration(Context context, Locale locale) {
-        Resources res = context.getResources();
-        Configuration config = res.getConfiguration();
+    fun updateConfiguration(context: Context, locale: Locale?) {
+        val res = context.resources
+        val config = res.configuration
 
-        // We should use setLocale, but it's unexpectedly missing
-        // on real devices.
-        config.locale = locale;
+        config.locale = locale
 
-        config.setLayoutDirection(locale);
+        config.setLayoutDirection(locale)
 
-        res.updateConfiguration(config, null);
+        @Suppress("DEPRECATION")
+        res.updateConfiguration(config, null)
     }
 
-    private SharedPreferences getSharedPreferences(final Context context) {
+    private fun getSharedPreferences(context: Context): SharedPreferences {
         if (PREF_LOCALE == null) {
-            PREF_LOCALE = context.getResources().getString(R.string.pref_key_locale);
+            PREF_LOCALE = context.getString(R.string.pref_key_locale)
         }
 
-        return PreferenceManager.getDefaultSharedPreferences(context);
+        return PreferenceManager.getDefaultSharedPreferences(context)
     }
 
     /**
      * @return the persisted locale in Java format: "en_US".
      */
-    private String getPersistedLocale(Context context) {
-        final SharedPreferences settings = getSharedPreferences(context);
-        final String locale = settings.getString(PREF_LOCALE, "");
+    private fun getPersistedLocale(context: Context): String? {
+        val settings = getSharedPreferences(context)
+        val locale = settings.getString(PREF_LOCALE, "")
 
-        if ("".equals(locale)) {
-            return null;
+        return if ("" == locale) {
+            null
+        } else {
+            locale
         }
-        return locale;
     }
 
-    private void persistLocale(Context context, String localeCode) {
-        final SharedPreferences settings = getSharedPreferences(context);
-        settings.edit().putString(PREF_LOCALE, localeCode).apply();
+    private fun persistLocale(context: Context, localeCode: String) {
+        val settings = getSharedPreferences(context)
+        settings.edit().putString(PREF_LOCALE, localeCode).apply()
     }
 
     /**
@@ -284,37 +230,36 @@ public class LocaleManager {
      *  locale information.
      */
     @NonNull
-    public Locale getCurrentLocale(@NonNull Context context) {
+    fun getCurrentLocale(@NonNull context: Context): Locale {
         if (currentLocale != null) {
-            return currentLocale;
+            return currentLocale!!
         }
 
-        final String current = getPersistedLocale(context);
+        val current = getPersistedLocale(context)
         if (current != null) {
-            currentLocale = Locales.parseLocaleCode(current);
+            currentLocale = Locales.parseLocaleCode(current)
         }
 
         if (currentLocale == null) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                currentLocale = context.getResources().getConfiguration().getLocales().get(0);
+            currentLocale = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                context.resources.configuration.locales[0]
             } else {
-                currentLocale = context.getResources().getConfiguration().locale;
+                @Suppress("DEPRECATION")
+                context.resources.configuration.locale
             }
         }
 
-        // In a very small number of cases, this locale will still be null. Most of our
-        // userbase uses English as a primary language, so we default to that as a fallback
         if (currentLocale == null) {
-            Sentry.capture(new AssertionError("Selected locale not available. Falling back to EN"));
-            currentLocale = Locale.US;
+            Sentry.capture(AssertionError("Selected locale not available. Falling back to EN"))
+            currentLocale = Locale.US
         }
 
-        return currentLocale;
+        return currentLocale!!
     }
 
     @NonNull
-    public Boolean currentLanguageIsEnglish(@NonNull Context context) {
-        return getCurrentLocale(context).getLanguage().equals("en");
+    fun currentLanguageIsEnglish(@NonNull context: Context): Boolean {
+        return getCurrentLocale(context).language == "en"
     }
 
     /**
@@ -327,50 +272,68 @@ public class LocaleManager {
      * @param localeCode a locale string in Java format: "en_US".
      * @return if it differed, a locale string in Java format: "en_US".
      */
-    private String updateLocale(Context context, String localeCode) {
-        // Fast path.
-        final Locale defaultLocale = Locale.getDefault();
-        Log.d("LOCALE", "Trying to check locale");
-        if (defaultLocale.toString().equals(localeCode)) {
-            Log.d("LOCALE", "Early return");
-            return null;
+    private fun updateLocale(context: Context, localeCode: String): String? {
+        val defaultLocale = Locale.getDefault()
+        Log.d("LOCALE", "Trying to check locale")
+        if (defaultLocale.toString() == localeCode) {
+            Log.d("LOCALE", "Early return")
+            return null
         }
 
-        final Locale locale = Locales.parseLocaleCode(localeCode);
+        val locale = Locales.parseLocaleCode(localeCode)
 
-        return updateLocale(context, locale);
+        return updateLocale(context, locale)
     }
 
     /**
      * @return the Java locale string: e.g., "en_US".
      */
-    private String updateLocale(Context context, final Locale locale) {
-        // Fast path.
-        if (Locale.getDefault().equals(locale)) {
-            return null;
+    private fun updateLocale(context: Context, locale: Locale): String? {
+        if (Locale.getDefault() == locale) {
+            return null
         }
 
-        Locale.setDefault(locale);
-        currentLocale = locale;
+        Locale.setDefault(locale)
+        currentLocale = locale
 
-        // Update resources.
-        updateConfiguration(context, locale);
+        updateConfiguration(context, locale)
 
-        return locale.toString();
+        return locale.toString()
     }
 
-    public boolean isMirroringSystemLocale(final Context context) {
-        return getPersistedLocale(context) == null;
+    fun isMirroringSystemLocale(context: Context): Boolean {
+        return getPersistedLocale(context) == null
     }
 
-    /**
-     * Returns a list of supported locale codes
-     */
-    public static Collection<String> getPackagedLocaleTags(final Context context) {
-        return LocaleList.BUNDLED_LOCALES;
-    }
+    companion object {
+        private var PREF_LOCALE: String? = null
+        private const val FALLBACK_LOCALE_TAG = "en-US"
 
-    public static String getFallbackLocaleTag() {
-        return FALLBACK_LOCALE_TAG;
+        private val instance = AtomicReference<LocaleManager?>(null)
+
+        @JvmStatic
+        fun getInstance(): LocaleManager {
+            var localeManager = instance.get()
+            if (localeManager != null) {
+                return localeManager
+            }
+
+            localeManager = LocaleManager()
+            if (instance.compareAndSet(null, localeManager)) {
+                return localeManager
+            } else {
+                return instance.get()!!
+            }
+        }
+
+        @JvmStatic
+        fun getPackagedLocaleTags(context: Context): Collection<String> {
+            return LocaleList.BUNDLED_LOCALES
+        }
+
+        @JvmStatic
+        fun getFallbackLocaleTag(): String {
+            return FALLBACK_LOCALE_TAG
+        }
     }
 }

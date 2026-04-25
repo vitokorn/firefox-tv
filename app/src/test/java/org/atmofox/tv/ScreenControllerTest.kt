@@ -6,16 +6,11 @@ package org.atmofox.tv
 
 import android.view.KeyEvent
 import io.mockk.MockKAnnotations
-import io.mockk.every
 import io.mockk.mockk
-import io.mockk.spyk
-import io.mockk.verify
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.atmofox.tv.ScreenControllerStateMachine.ActiveScreen
-import org.atmofox.tv.helpers.KeyEventHelper
-import org.atmofox.tv.helpers.MockFragmentManagerContainer
 import org.atmofox.tv.helpers.FirefoxRobolectricTestRunner
 
 @RunWith(FirefoxRobolectricTestRunner::class)
@@ -23,47 +18,41 @@ class ScreenControllerTest {
 
     private lateinit var controller: ScreenController
 
-    private lateinit var fragmentContainer: MockFragmentManagerContainer
-
     @Before
     fun setUp() {
         MockKAnnotations.init(this)
-
-        controller = spyk(ScreenController(mockk()))
-
-        fragmentContainer = MockFragmentManagerContainer()
+        controller = ScreenController(mockk())
     }
 
     @Test
-    fun `GIVEN any screen is active and handleMenu is a stub returning false WHEN menu is pressed THEN dispatchKeyEvent is not forwarded to any fragments`() {
-        // It's bad practice to stub the object under test but we'd have to stub FragmentTransactions, which is impractical.
-        every { controller.handleMenu(any()) } returns false
+    fun `GIVEN WEB_RENDER is active WHEN dispatchKeyEvent is called THEN it returns false for non-menu keys`() {
+        val keyEvent = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT)
+        controller.setActiveScreenForCompose(ActiveScreen.WEB_RENDER)
 
-        ActiveScreen.values().forEach { activeScreen ->
-            KeyEventHelper.getDownUpKeyEvents(KeyEvent.KEYCODE_MENU).forEach { keyEvent ->
-                controller.dispatchKeyEvent(keyEvent, fragmentContainer.fragmentManager, activeScreen)
+        val result = controller.dispatchKeyEvent(keyEvent)
 
-                verify(exactly = 0) { fragmentContainer.navigationOverlayFragment.dispatchKeyEvent(any()) }
-                verify(exactly = 0) { fragmentContainer.webRenderFragment.dispatchKeyEvent(any()) }
-            }
-        }
+        assert(!result) { "Expected dispatchKeyEvent to return false for WEB_RENDER with non-menu key" }
     }
 
     @Test
-    fun `GIVEN the WebRenderFragment is active WHEN non-menu KeyEvents are received THEN dispatchKeyEvent is called on the WebRenderFragment`() {
-        getNonMenuKeyEvents().forEach { keyEvent ->
-            controller.dispatchKeyEvent(keyEvent, fragmentContainer.fragmentManager, ActiveScreen.WEB_RENDER)
-            verify { fragmentContainer.webRenderFragment.dispatchKeyEvent(keyEvent) }
-        }
+    fun `GIVEN NAVIGATION_OVERLAY is active WHEN dispatchKeyEvent is called THEN it returns false`() {
+        val keyEvent = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_UP)
+        controller.setActiveScreenForCompose(ActiveScreen.NAVIGATION_OVERLAY)
+
+        val result = controller.dispatchKeyEvent(keyEvent)
+
+        assert(!result) { "Expected dispatchKeyEvent to return false for NAVIGATION_OVERLAY" }
     }
 
     @Test
-    fun `GIVEN the NavigationOverlayFragment is active WHEN non-menu KeyEvents are received THEN dispatchKeyEvent is called on the NavigationOverlayFragment`() {
-        getNonMenuKeyEvents().forEach { keyEvent ->
-            controller.dispatchKeyEvent(keyEvent, fragmentContainer.fragmentManager, ActiveScreen.NAVIGATION_OVERLAY)
-            verify { fragmentContainer.navigationOverlayFragment.dispatchKeyEvent(keyEvent) }
+    fun `GIVEN handleMenu is called THEN it updates active screen`() {
+        controller.setActiveScreenForCompose(ActiveScreen.WEB_RENDER)
+
+        controller.handleMenu()
+
+        // After handleMenu, state should have changed (typically to NAVIGATION_OVERLAY)
+        assert(controller.currentActiveScreen.value == ActiveScreen.NAVIGATION_OVERLAY) {
+            "Expected active screen to change after handleMenu"
         }
     }
-
-    private fun getNonMenuKeyEvents(): List<KeyEvent> = KeyEventHelper.getRandomKeyEventsExcept(KeyEvent.KEYCODE_MENU)
 }

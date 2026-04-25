@@ -4,33 +4,10 @@
 
 package org.atmofox.tv.compose.utils
 
-import android.util.Log
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.State
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import io.reactivex.Observable
-import io.reactivex.android.schedulers.AndroidSchedulers
-import io.reactivex.functions.Consumer
-
 /**
- * Collects an RxJava2 [Observable] into a Compose [State].
+ * Flow-based state collection is now handled natively by
+ * androidx.compose.runtime.collectAsState() for both StateFlow and Flow.
  *
- * Automatically switches to the main thread before updating state,
- * since Compose [MutableState] must only be mutated on the main thread.
- *
- * @param initial The initial value before the first emission.
+ * This file is intentionally left as a placeholder to avoid breaking imports
+ * during the RxJava -> Coroutines migration.
  */
-@Composable
-fun <T : Any> Observable<T>.collectAsState(initial: T): State<T> {
-    val state = remember { mutableStateOf(initial) }
-    DisposableEffect(this) {
-        val disposable = observeOn(AndroidSchedulers.mainThread()).subscribe(
-            Consumer { state.value = it },
-            Consumer { Log.e("collectAsState", "Error collecting state", it) }
-        )
-        onDispose { disposable.dispose() }
-    }
-    return state
-}

@@ -4,15 +4,9 @@
 
 package org.atmofox.tv.fxa
 
-import io.reactivex.Observable
 import mozilla.components.concept.sync.DeviceType
 import mozilla.components.concept.sync.TabData
-import mozilla.components.support.base.log.logger.Logger
-import org.atmofox.tv.R
 import org.atmofox.tv.framework.UnresolvedString
-import org.atmofox.tv.telemetry.SentryIntegration
-
-private val logger = Logger(FxaReceivedTab::class.java.simpleName)
 
 /**
  * A data container for tabs received from a single device via FxA. While we currently support
@@ -39,12 +33,3 @@ data class FxaReceivedTab(
         val receivedUrlCount: Int
     )
 }
-
-// ADMIntegration removed. Received tab support disabled in v56+.
-@Suppress("UNUSED_PARAMETER")
-fun Observable<FxaReceivedTab>.filterMapToDomainObject(
-    sentryIntegration: SentryIntegration = SentryIntegration
-): Observable<FxaReceivedTab> = this
-
-/** An Exception thrown when during the receive tab process. */
-private class ReceiveTabException(msg: String) : Exception(msg)

@@ -16,7 +16,6 @@ import mozilla.components.feature.session.SessionFeature
 import org.atmofox.tv.ext.onPauseIfNotNull
 import org.atmofox.tv.ext.onResumeIfNotNull
 import org.atmofox.tv.ext.serviceLocator
-import org.atmofox.tv.ext.webRenderComponents
 
 /**
  * Compose wrapper around [EngineView] using AndroidView interop.
@@ -31,9 +30,10 @@ fun EngineViewCompose(
     val context = LocalContext.current
     val serviceLocator = context.serviceLocator
 
-    // Create EngineView once — it must survive recompositions.
+    // Reuse cached EngineView so web page state and native memory survive
+    // across BrowserScreen ↔ MenuOverlay composition switches.
     val engineView = remember(context) {
-        context.webRenderComponents.engine.createView(context, null)
+        serviceLocator.engineViewCache.getEngineView(context)
     }
 
     AndroidView(

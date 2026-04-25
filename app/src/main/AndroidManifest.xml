@@ -29,6 +29,7 @@
         android:theme="@style/AppTheme"
         android:name=".FirefoxApplication"
         android:usesCleartextTraffic="true"
+        android:extractNativeLibs="true"
         tools:ignore="UnusedAttribute">
 
         <provider

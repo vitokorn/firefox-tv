@@ -272,6 +272,16 @@ fun EngineView.onResumeIfNotNull() {
         this.onResume()
 }
 
+fun EngineView.onStopIfNotNull() {
+    if (webView != null)
+        (this as? mozilla.components.browser.engine.system.SystemEngineView)?.onStop()
+}
+
+fun EngineView.onDestroyIfNotNull() {
+    if (webView != null)
+        (this as? mozilla.components.browser.engine.system.SystemEngineView)?.onDestroy()
+}
+
 // This method is only for adding extension methods here (as a workaround). Do not expose WebView to the app.
 @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE) val EngineView.webView: WebView?
     get() = getOrPutExtension(this).webView

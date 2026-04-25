@@ -4,12 +4,12 @@
 
 package org.atmofox.tv.hint
 
-import io.reactivex.Observable
+import kotlinx.coroutines.flow.Flow
 
 /**
  * Contains backing data for hint bar
  */
 interface HintViewModel {
-    val isDisplayed: Observable<Boolean>
-    val hints: Observable<List<HintContent>>
+    val isDisplayed: Flow<Boolean>
+    val hints: Flow<List<HintContent>>
 }
