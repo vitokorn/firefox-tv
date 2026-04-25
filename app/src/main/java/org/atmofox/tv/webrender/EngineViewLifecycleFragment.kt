@@ -1,0 +1,130 @@
+/* -*- Mode: Java; c-basic-offset: 4; tab-width: 4; indent-tabs-mode: nil; -*-
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+package org.atmofox.tv.webrender
+
+import android.os.Bundle
+import android.util.Log
+import android.view.View
+import android.webkit.WebView
+import androidx.annotation.UiThread
+import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.disposables.Disposable
+import mozilla.components.concept.engine.EngineView
+import mozilla.components.feature.session.SessionFeature
+import org.atmofox.tv.R
+import org.atmofox.tv.components.locale.LocaleAwareFragment
+import org.atmofox.tv.components.locale.LocaleManager
+import org.atmofox.tv.ext.onPauseIfNotNull
+import org.atmofox.tv.ext.onResumeIfNotNull
+import org.atmofox.tv.ext.requireWebRenderComponents
+import java.util.Locale
+
+/**
+ * Initializes and manages the lifecycle of an [EngineView] instance inflated by the super class.
+ * It was originally inspired by Android's WebViewFragment.
+ *
+ * To use this class, override it with a super-class that inflates a layout with an [EngineView] with
+ * @id=webview.
+ *
+ * Notes on alternative implementations: while composability is generally preferred over
+ * inheritance, there are too many entry points to use this with composition (i.e. all lifecycle
+ * methods) so it's more error-prone and we stuck with this implementation. Composability was
+ * tried in PR #428.
+ */
+@Deprecated("Replaced by EngineViewCompose in Compose migration")
+abstract class EngineViewLifecycleFragment : LocaleAwareFragment() {
+
+    private val compositeDisposable = CompositeDisposable()
+
+    /**
+     * The [EngineView] in use by this fragment. If the value is non-null, the EngineView is present
+     * in the view hierarchy, null otherwise.
+     */
+    var engineView: EngineView? = null
+        @UiThread get // On a background thread, it may have been removed from the view hierarchy.
+        private set
+
+    private lateinit var sessionFeature: SessionFeature
+
+    // TODO: https://github.com/mozilla-mobile/firefox-tv/issues/2053
+    abstract fun onEngineViewCreated(engineView: EngineView): Disposable?
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        // The SessionFeature implementation will take care of making sure that we always render the currently selected
+        // session in our engine view.
+        // It's important to initialize SessionFeature instance to respect its associated fragment's
+        // lifecycle and the EngineView instance (to avoid accidentally having multiple sessionFeature
+        // instances)
+        engineView = (view.findViewById<View>(R.id.engineView) as EngineView).apply {
+            val components = requireWebRenderComponents
+            sessionFeature = SessionFeature(
+                    components.store,
+                    components.sessionUseCases.goBack,
+                    components.sessionUseCases.goForward,
+                    this)
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        sessionFeature.stop()
+
+        compositeDisposable.clear()
+
+        // NB: onStop unexpectedly calls onPause: see below.
+        //
+        // When the user says "Alexa pause [the video]", the Activity will be paused/resumed while
+        // Alexa handles the request. If the EngineView is paused during video playback, the video will
+        // have poor behavior (on YouTube the screen goes black, may rebuffer, and may lose the voice
+        // command). Unfortunately, there does not appear to be any way to prevent this other than
+        // to not call EngineView.onPause so we pause the EngineView later, here in onStop, when it isn't
+        // affected by Alexa voice commands. Luckily, Alexa pauses the video for us. afaict, on
+        // Fire TV, `onPause` without `onStop` isn't called very often so I don't think there will
+        // be many side effects (#936).
+        //
+        // The problem is not reproducible when onPause is called here in onStop (even if pauseTimers is
+        // called in onPause, in the android-components library).
+        engineView!!.onPauseIfNotNull() // internally calls EngineView.onPause: see impl for details.
+    }
+
+    override fun onStart() {
+        super.onStart()
+        Log.d("EngineViewLifecycleFragment", "onStart: calling sessionFeature.start()")
+        sessionFeature.start()
+        Log.d("EngineViewLifecycleFragment", "onStart: sessionFeature.start() complete, engineView=$engineView")
+
+        engineView?.apply {
+            Log.d("EngineViewLifecycleFragment", "onStart: calling onEngineViewCreated")
+            val disposable = onEngineViewCreated(this)
+            disposable?.let { compositeDisposable.add(it) }
+
+            // NB: onStart unexpectedly calls onResume: see onStop for details.
+            onResumeIfNotNull()
+        }
+    }
+
+    override fun applyLocale() {
+        val context = context!!
+        val localeManager = LocaleManager.getInstance()
+        if (!localeManager.isMirroringSystemLocale(context)) {
+            val currentLocale = localeManager.getCurrentLocale(context)
+            Locale.setDefault(currentLocale)
+
+            val resources = context.resources
+            val config = resources.configuration
+            config.setLocale(currentLocale)
+
+            @Suppress("DEPRECATION") // TODO: This is non-trivial to fix: #850.
+            resources.updateConfiguration(config, null)
+        }
+        // We create and destroy a new WebView here to force the internal state of WebView to know
+        // about the new language. See focus-android issue #666.
+        val unneeded = WebView(requireContext())
+        unneeded.destroy()
+    }
+}

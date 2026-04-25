@@ -22,7 +22,7 @@ ext.gleanYamlFiles = ["$projectDir/metrics.yaml"]
 apply plugin: 'org.mozilla.telemetry.glean-gradle-plugin'
 
 android {
-    namespace 'org.mozilla.tv.firefox'
+    namespace 'org.atmofox.tv'
     compileSdkVersion 34
     buildToolsVersion '34.0.0'
 
@@ -32,13 +32,13 @@ android {
     }
 
     defaultConfig {
-        applicationId "org.mozilla.tv.firefox"
+        applicationId "org.atmofox.tv"
         minSdkVersion 22
         targetSdkVersion 34
         versionCode 11 // This versionCode is "frozen" for local builds. For "release" builds we
         // override this with a generated versionCode at build time.
-        versionName "5.6"
-        testInstrumentationRunner "org.mozilla.tv.firefox.FirefoxOnDeviceTestRunner"
+        versionName "12.8"
+        testInstrumentationRunner "org.atmofox.tv.FirefoxOnDeviceTestRunner"
         testInstrumentationRunnerArguments clearPackageData: 'true'
 
         multiDexEnabled true
@@ -388,7 +388,7 @@ def getEnabledLocales() {
     return langs.sort { it }
 }
 
-def generatedLocaleListDir = 'src/main/java/org/mozilla/tv/firefox/generated'
+def generatedLocaleListDir = 'src/main/java/org/atmofox/tv/generated'
 def generatedLocaleListFilename = 'LocaleList.java'
 
 task generateLocaleList {
@@ -399,7 +399,7 @@ task generateLocaleList {
 
         localeList.delete()
         localeList.createNewFile()
-        localeList << "package org.mozilla.tv.firefox.generated;" << "\n" << "\n"
+        localeList << "package org.atmofox.tv.generated;" << "\n" << "\n"
         localeList << "import java.util.Arrays;" << "\n"
         localeList << "import java.util.Collections;" << "\n"
         localeList << "import java.util.List;" << "\n"

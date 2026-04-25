@@ -28,7 +28,7 @@
         android:nextFocusUp="@+id/bannerMoreInfoButton"
         android:contentDescription="@string/content_description_reload"/>
 
-    <org.mozilla.tv.firefox.widget.CheckableImageButton
+    <org.atmofox.tv.widget.CheckableImageButton
         android:id="@+id/pinButton"
         style="@style/NavigationButton"
         android:src="@drawable/pin_selector"
@@ -36,12 +36,12 @@
         android:contentDescription="@string/pin_label"/>
 
     <!-- src and content description set programmatically -->
-    <org.mozilla.tv.firefox.widget.CheckableImageButton
+    <org.atmofox.tv.widget.CheckableImageButton
         android:id="@+id/turboButton"
         android:nextFocusUp="@+id/bannerMoreInfoButton"
         style="@style/NavigationButton" />
 
-    <org.mozilla.tv.firefox.widget.CheckableImageButton
+    <org.atmofox.tv.widget.CheckableImageButton
         android:id="@+id/desktopModeButton"
         style="@style/NavigationButton"
         android:src="@drawable/mozac_ic_device_desktop"
@@ -77,7 +77,7 @@
     <ImageView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:src="@drawable/ic_firefox_and_wordmark"
+        android:src="@drawable/ic_atmofox_and_wordmark"
         android:contentDescription="@null" />
 
 </merge>

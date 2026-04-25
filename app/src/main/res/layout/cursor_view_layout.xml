@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Standalone cursor view layout for Compose interop -->
+<org.atmofox.tv.webrender.cursor.CursorView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/cursorView"
+    android:layout_width="@dimen/remote_cursor_size"
+    android:layout_height="@dimen/remote_cursor_size"
+    android:scaleType="centerInside" />

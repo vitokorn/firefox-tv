@@ -1,0 +1,81 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+package org.atmofox.tv.webrender
+
+import android.content.Context
+import android.content.Intent
+import android.os.Handler
+import android.os.Looper
+import androidx.core.content.ContextCompat.startActivity
+import com.google.android.gms.oss.licenses.OssLicensesMenuActivity
+import android.util.Base64
+import mozilla.components.browser.errorpages.ErrorType
+import mozilla.components.concept.engine.EngineSession
+import mozilla.components.concept.engine.request.RequestInterceptor
+import org.atmofox.tv.R
+import org.atmofox.tv.ext.serviceLocator
+import org.atmofox.tv.utils.BuildConstants.getInterceptionResponseContent
+import org.atmofox.tv.utils.URLs
+
+/**
+ * [RequestInterceptor] implementation to inject custom content for about:* pages.
+ */
+class CustomContentRequestInterceptor(
+    private val context: Context
+) : RequestInterceptor {
+
+    override fun interceptsAppInitiatedRequests() = true
+
+    private var currentPageURL = ""
+
+    override fun onLoadRequest(
+        engineSession: EngineSession,
+        uri: String,
+        lastUri: String?,
+        hasUserGesture: Boolean,
+        isSameDomain: Boolean,
+        isRedirect: Boolean,
+        isDirectNavigation: Boolean,
+        isSubframeRequest: Boolean
+    ): RequestInterceptor.InterceptionResponse? {
+        currentPageURL = uri
+
+        return when (uri) {
+            URLs.APP_URL_HOME ->
+                RequestInterceptor.InterceptionResponse.Content("<html></html>")
+
+            URLs.URL_ABOUT -> getInterceptionResponseContent(
+                LocalizedContent.generateAboutPage(context))
+
+            URLs.URL_GPL -> getInterceptionResponseContent(
+                LocalizedContent.generatePage(context, R.raw.gpl))
+
+            URLs.URL_LICENSES -> {
+                // Prevent getting stuck in this loop when clicking back from the activity
+                Handler(Looper.getMainLooper()).post { context.serviceLocator.sessionRepo.attemptBack() }
+                val intent = Intent(context, OssLicensesMenuActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                startActivity(context, intent, null)
+
+                null
+            }
+
+            else -> null
+        }
+    }
+
+    override fun onErrorRequest(
+        session: EngineSession,
+        errorType: ErrorType,
+        uri: String?
+    ): RequestInterceptor.ErrorResponse? {
+        return uri?.let {
+            val data = ErrorPage.loadErrorPage(context, uri, errorType)
+            val encodedData = Base64.encodeToString(data.toByteArray(Charsets.UTF_8), Base64.NO_PADDING)
+            RequestInterceptor.ErrorResponse("data:text/html;base64,$encodedData")
+        }
+    }
+}

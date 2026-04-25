@@ -4,7 +4,7 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
           xmlns:tools="http://schemas.android.com/tools"
-          package="org.mozilla.tv.firefox">
+          package="org.atmofox.tv">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" /> <!-- Used by sentry. -->
@@ -101,11 +101,6 @@
         <activity
             android:name="com.google.android.gms.oss.licenses.OssLicensesActivity"
             android:exported="false" />
-
-        <activity
-            android:name=".compose.ComposeActivity"
-            android:exported="false"
-            android:theme="@style/AppTheme" />
 
         <activity
             android:name=".onboarding.ReceiveTabPreboardingActivity"

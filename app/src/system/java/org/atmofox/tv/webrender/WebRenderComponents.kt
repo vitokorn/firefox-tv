@@ -1,0 +1,62 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+package org.atmofox.tv.webrender
+
+import android.content.Context
+import mozilla.components.browser.engine.system.SystemEngine
+import mozilla.components.browser.state.store.BrowserStore
+import mozilla.components.browser.state.engine.EngineMiddleware
+import mozilla.components.concept.engine.DefaultSettings
+import mozilla.components.concept.engine.Engine
+import mozilla.components.feature.session.SessionUseCases
+import mozilla.components.support.utils.SafeIntent
+import org.atmofox.tv.R
+import org.atmofox.tv.utils.BuildConstants
+import org.atmofox.tv.utils.Settings
+
+/**
+ * Helper class for lazily instantiating and keeping references to components needed by the
+ * application.
+ */
+class WebRenderComponents(applicationContext: Context, systemUserAgent: String) {
+    fun notifyLaunchWithSafeIntent(@Suppress("UNUSED_PARAMETER") safeIntent: SafeIntent): Boolean {
+        // For the system WebView, we don't need the initial launch intent right now.  In the
+        // future, we might configure a proxy server using this intent for automation.
+        return false
+    }
+
+    val engine: Engine by lazy {
+        fun getUserAgent(): String = UserAgent.buildUserAgentString(
+                applicationContext,
+                systemUserAgent = systemUserAgent,
+                appName = applicationContext.resources.getString(R.string.useragent_appname))
+
+        SystemEngine(applicationContext, DefaultSettings(
+                trackingProtectionPolicy = Settings.getInstance(applicationContext).trackingProtectionPolicy,
+                requestInterceptor = CustomContentRequestInterceptor(applicationContext),
+                userAgentString = getUserAgent(),
+
+                displayZoomControls = false,
+                loadWithOverviewMode = true, // To respect the html viewport
+
+                // We don't have a reason for users to access local files; assets can still
+                // be loaded via file:///android_asset/
+                allowFileAccess = false,
+                allowContentAccess = false,
+
+                remoteDebuggingEnabled = BuildConstants.isDevBuild,
+
+                mediaPlaybackRequiresUserGesture = false // Allows auto-play (which improves YouTube experience).
+        ))
+    }
+
+    val store by lazy {
+        BrowserStore(
+            middleware = EngineMiddleware.create(engine)
+        )
+    }
+
+    val sessionUseCases by lazy { SessionUseCases(store) }
+}

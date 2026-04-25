@@ -83,7 +83,7 @@ Sentry collects basic information about the Firefox for Fire TV app.
 
 ```
     "app": {
-      "app_identifier": "org.mozilla.tv.firefox",
+      "app_identifier": "org.atmofox.tv",
       "app_name": "Firefox",
       "app_start_time": "2018-03-30T16:55:03Z",
       "app_version": "2.1",

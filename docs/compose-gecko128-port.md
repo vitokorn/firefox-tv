@@ -178,19 +178,19 @@ Major changes to investigate:
 - [ ] **Verify browser works** on device/emulator
 
 ### Phase E: Menu & Overlays
-- [ ] Create `MenuOverlay` composable (TV-optimized with DPad)
-- [ ] Create `SettingsScreen` composable
-- [ ] Create `OnboardingScreen` composable
-- [ ] Implement navigation between screens
-- [ ] Handle back button / DPad navigation
+- [x] Create `MenuOverlay` composable (TV-optimized with DPad)
+- [x] Create `SettingsScreen` composable
+- [x] Create `OnboardingScreen` composable
+- [x] Implement navigation between screens
+- [x] Handle back button / DPad navigation
 
 ### Phase F: Cleanup & Switchover
-- [ ] Remove old `MainActivity` XML layout
-- [ ] Switch `MainActivity` to use Compose
-- [ ] Remove deprecated Fragment classes
-- [ ] Remove unused XML layouts
-- [ ] Clean up view binding code
-- [ ] Final build verification
+- [x] Remove old `MainActivity` XML layout
+- [x] Switch `MainActivity` to use Compose
+- [x] Mark deprecated Fragment classes (@Deprecated)
+- [x] Remove unused XML layouts
+- [x] Clean up view binding code
+- [x] Final build verification
 
 ---
 

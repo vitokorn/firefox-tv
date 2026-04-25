@@ -32,12 +32,12 @@ test_run = testdroid.start_test_run_using_config(json.dumps({
     "files": [{"id": app_apk['id'], "action": "INSTALL"}, {"id": test_app_apk['id'], "action": "RUN_TEST"}],
     "frameworkId": 24,
     "limitationType": "CLASS",
-    "limitationValue": "org.mozilla.tv.firefox.ui",
+    "limitationValue": "org.atmofox.tv.ui",
     "osType": "ANDROID",
     "projectId": 296208,
     "scheduler": "PARALLEL",
     "testRunName": str(time.strftime("%m/%d/%Y %H:%M:%S")),
-    "instrumentationRunner": "org.mozilla.tv.firefox.FirefoxOnDeviceTestRunner"
+    "instrumentationRunner": "org.atmofox.tv.FirefoxOnDeviceTestRunner"
 }))
 
 print "Bitbar Cloud: UI Test Run Created - " + str(test_run['id'])
