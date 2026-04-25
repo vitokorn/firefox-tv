@@ -19,6 +19,7 @@ import org.atmofox.tv.ext.Js.RESTORE_JS
 import org.atmofox.tv.utils.Direction
 import org.atmofox.tv.webrender.FocusedDOMElementCache
 import java.util.WeakHashMap
+import java.util.concurrent.Executors
 
 // Extension methods on the EngineView class. This is used for additional features that are not part
 // of the upstream browser-engine(-gecko) component yet.
@@ -159,14 +160,21 @@ fun EngineView.removeJavascriptInterface(interfaceName: String) {
     println("TODO: require media interface from platform team $interfaceName")
 }
 
-@Synchronized
-fun EngineView.scrollByClamped(vx: Int, vy: Int) {
-    // TODO: to be addressed #1912; PanZoomController does not update asynchronously
-    geckoView?.apply {
-        val screenLengthX = ScreenLength.fromPixels((vx * 17).toDouble())
-        val screenLengthY = ScreenLength.fromPixels((vy * 17).toDouble())
+private val scrollExecutor = Executors.newSingleThreadExecutor { r ->
+    Thread(r, "GeckoScroll-IPC").apply { isDaemon = true }
+}
 
-        panZoomController.scrollBy(screenLengthX, screenLengthY)
+fun EngineView.scrollByClamped(vx: Int, vy: Int) {
+    val gecko = geckoView ?: return
+    val screenLengthX = ScreenLength.fromPixels((vx * 17).toDouble())
+    val screenLengthY = ScreenLength.fromPixels((vy * 17).toDouble())
+
+    // Capture controller reference on the UI thread, then dispatch the
+    // synchronous IPC to a background thread so the UI never blocks
+    // when the Gecko content process is busy (ads, trackers, media).
+    val pzc = gecko.panZoomController
+    scrollExecutor.execute {
+        pzc.scrollBy(screenLengthX, screenLengthY)
     }
 }
 
