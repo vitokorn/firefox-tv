@@ -60,8 +60,6 @@ import org.atmofox.tv.webrender.cursor.CursorModel
  *   ```
  */
 open class ServiceLocator(val app: Application) {
-    private val appVersion = app.packageManager.getPackageInfo(app.packageName, 0).versionName
-
     val intentFlow by lazy { MutableSharedFlow<ValidatedIntentData?>(extraBufferCapacity = 1) }
     val fretboardProvider: FretboardProvider by lazy { FretboardProvider(app) }
     val experimentsProvider by lazy { ExperimentsProvider(fretboardProvider.fretboard, app) }
@@ -80,7 +78,7 @@ open class ServiceLocator(val app: Application) {
     val deviceInfo by lazy { DeviceInfo() }
 
     // These open vals are overridden in testing
-    open val frameworkRepo = FrameworkRepo.newInstanceAndInit(app.getAccessibilityManager())
+    open val frameworkRepo by lazy { FrameworkRepo.newInstanceAndInit(app.getAccessibilityManager()) }
     open val pinnedTileRepo by lazy { PinnedTileRepo(app) }
     open val sessionRepo by lazy { SessionRepo(store, sessionUseCases, turboMode).apply { observeSources() } }
     open val settingsRepo by lazy { SettingsRepo(app) }

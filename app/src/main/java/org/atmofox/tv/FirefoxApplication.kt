@@ -7,6 +7,7 @@ package org.atmofox.tv
 import android.app.Activity
 import android.content.Context
 import android.os.StrictMode
+import android.os.Trace
 import androidx.annotation.VisibleForTesting
 import android.webkit.WebSettings
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -18,6 +19,8 @@ import mozilla.components.lib.fetch.okhttp.OkHttpClient
 import coil.Coil
 import coil.ImageLoader
 import coil.memory.MemoryCache
+import androidx.work.Configuration as WorkManagerConfiguration
+import androidx.work.WorkManager
 import mozilla.components.service.glean.Glean
 import mozilla.components.service.glean.config.Configuration
 import mozilla.components.service.glean.net.ConceptFetchHttpUploader
@@ -73,6 +76,17 @@ open class FirefoxApplication : LocaleAwareApplication() {
      */
     val components by lazy { WebRenderComponents(this, getSystemUserAgent()) }
     lateinit var serviceLocator: ServiceLocator
+    @Volatile
+    private var deferredStartupInitialized = false
+
+    private inline fun <T> traceStartupSection(name: String, block: () -> T): T {
+        Trace.beginSection(name)
+        return try {
+            block()
+        } finally {
+            Trace.endSection()
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -84,20 +98,25 @@ open class FirefoxApplication : LocaleAwareApplication() {
         // a GeckoView child process or the crash handling process. Most importantly we never want to end up in a
         // situation where we create a GeckoRuntime from the Gecko child process
         applicationContext.runOnlyInMainProcess {
-            serviceLocator = createServiceLocator()
+            traceStartupSection("fftv.app.create_service_locator") {
+                serviceLocator = createServiceLocator()
+            }
 
             // Enable crash reporting. Don't add anything above here because if it crashes, we won't know.
-            SentryIntegration.init(this, serviceLocator.settingsRepo)
+            traceStartupSection("fftv.app.init_sentry") {
+                SentryIntegration.init(this, serviceLocator.settingsRepo)
+            }
 
-            initRustDependencies()
-            TelemetryIntegration.INSTANCE.init(this)
-            initGlean()
-            initFretboard()
+            traceStartupSection("fftv.app.init_rust_dependencies") {
+                initRustDependencies()
+            }
 
             enableStrictMode()
 
-            visibilityLifeCycleCallback = VisibilityLifeCycleCallback(this).also {
-                registerActivityLifecycleCallbacks(it)
+            traceStartupSection("fftv.app.register_activity_lifecycle") {
+                visibilityLifeCycleCallback = VisibilityLifeCycleCallback(this).also {
+                    registerActivityLifecycleCallbacks(it)
+                }
             }
 
             // Configure Coil with reduced memory cache to limit footprint on low-RAM TV devices
@@ -110,6 +129,32 @@ open class FirefoxApplication : LocaleAwareApplication() {
                 .build()
             Coil.setImageLoader(coilImageLoader)
         }
+    }
+
+    @Synchronized
+    fun maybeInitDeferredStartup() {
+        if (deferredStartupInitialized) {
+            return
+        }
+
+        traceStartupSection("fftv.app.deferred_init_workmanager") {
+            try {
+                WorkManager.initialize(this, WorkManagerConfiguration.Builder().build())
+            } catch (_: IllegalStateException) {
+            }
+        }
+
+        traceStartupSection("fftv.app.init_telemetry") {
+            TelemetryIntegration.INSTANCE.init(this)
+        }
+        traceStartupSection("fftv.app.init_glean") {
+            initGlean()
+        }
+        traceStartupSection("fftv.app.init_fretboard") {
+            initFretboard()
+        }
+
+        deferredStartupInitialized = true
     }
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)

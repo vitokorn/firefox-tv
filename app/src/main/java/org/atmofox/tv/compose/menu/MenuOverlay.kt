@@ -73,11 +73,15 @@ fun MenuOverlay(
     onNavigateToBrowser: () -> Unit,
     onNavigateToSettings: (SettingsType) -> Unit,
     onNavigateHome: () -> Unit,
+    onNavigateToUrl: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val channelRepo = context.serviceLocator.channelRepo
-    val sessionUseCases = context.serviceLocator.sessionUseCases
+
+    val loadUrlAndNavigateToBrowser: (String) -> Unit = { url ->
+        onNavigateToUrl(url)
+    }
 
     val pinnedTiles by channelRepo.pinnedTilesFlow.collectAsState()
     val newsTiles by channelRepo.newsTilesFlow.collectAsState()
@@ -95,6 +99,7 @@ fun MenuOverlay(
     ) {
         // Top nav buttons (same style as browser)
         NavigationControls(
+            observeBrowserState = false,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = 57.dp, end = 57.dp, bottom = 24.dp)
@@ -103,6 +108,8 @@ fun MenuOverlay(
         // URL bar (dark rounded rect with search icon)
         UrlBar(
             onSubmit = onNavigateToBrowser,
+            onSubmitUrl = loadUrlAndNavigateToBrowser,
+            observeBrowserState = false,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = 57.dp, end = 57.dp, bottom = 48.dp)
@@ -119,8 +126,7 @@ fun MenuOverlay(
                 tileWidth = tileWidth,
                 tileHeight = tileHeight,
                 onTileClick = {
-                    sessionUseCases.loadUrl.invoke(it.url)
-                    onNavigateToBrowser()
+                    loadUrlAndNavigateToBrowser(it.url)
                 }
             )
         }
@@ -131,8 +137,7 @@ fun MenuOverlay(
                 tileWidth = tileWidth,
                 tileHeight = tileHeight,
                 onTileClick = {
-                    sessionUseCases.loadUrl.invoke(it.url)
-                    onNavigateToBrowser()
+                    loadUrlAndNavigateToBrowser(it.url)
                 }
             )
         }
@@ -143,8 +148,7 @@ fun MenuOverlay(
                 tileWidth = tileWidth,
                 tileHeight = tileHeight,
                 onTileClick = {
-                    sessionUseCases.loadUrl.invoke(it.url)
-                    onNavigateToBrowser()
+                    loadUrlAndNavigateToBrowser(it.url)
                 }
             )
         }
@@ -155,8 +159,7 @@ fun MenuOverlay(
                 tileWidth = tileWidth,
                 tileHeight = tileHeight,
                 onTileClick = {
-                    sessionUseCases.loadUrl.invoke(it.url)
-                    onNavigateToBrowser()
+                    loadUrlAndNavigateToBrowser(it.url)
                 }
             )
         }
@@ -192,8 +195,7 @@ fun MenuOverlay(
                 iconRes = R.drawable.mozac_ic_globe,
                 onClick = {
                     // Privacy policy loads a URL directly, not a settings screen
-                    sessionUseCases.loadUrl.invoke(URLs.PRIVACY_NOTICE_URL)
-                    onNavigateToBrowser()
+                    loadUrlAndNavigateToBrowser(URLs.PRIVACY_NOTICE_URL)
                 }
             )
         }

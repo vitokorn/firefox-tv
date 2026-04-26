@@ -57,16 +57,36 @@ import org.atmofox.tv.utils.URLs
 @Composable
 fun NavigationControls(
     onOpenMenu: () -> Unit = {},
+    observeBrowserState: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val serviceLocator = context.serviceLocator
-    val sessionRepo = serviceLocator.sessionRepo
-    val pinnedTileRepo = serviceLocator.pinnedTileRepo
+    val sessionRepo = if (observeBrowserState) serviceLocator.sessionRepo else null
+    val pinnedTileRepo = if (observeBrowserState) serviceLocator.pinnedTileRepo else null
 
-    val state by sessionRepo.state.collectAsState()
+    val state by if (sessionRepo != null) {
+        sessionRepo.state.collectAsState()
+    } else {
+        remember {
+            mutableStateOf(
+                org.atmofox.tv.session.SessionRepo.State(
+                    backEnabled = false,
+                    forwardEnabled = false,
+                    desktopModeActive = false,
+                    turboModeActive = false,
+                    currentUrl = URLs.APP_URL_HOME,
+                    loading = false
+                )
+            )
+        }
+    }
 
-    val pinnedTiles by pinnedTileRepo.pinnedTiles.collectAsState()
+    val pinnedTiles by if (pinnedTileRepo != null) {
+        pinnedTileRepo.pinnedTiles.collectAsState()
+    } else {
+        remember { mutableStateOf(emptyMap<String, PinnedTile>()) }
+    }
     val isCurrentUrlPinned = pinnedTiles.containsKey(state.currentUrl)
     val isHomepage = state.currentUrl == URLs.APP_URL_HOME ||
             state.currentUrl == "data:text/html,<html></html>" ||
@@ -83,20 +103,20 @@ fun NavigationControls(
         NavButton(
             iconRes = R.drawable.mozac_ic_back,
             contentDescription = "Back",
-            enabled = state.backEnabled,
-            onClick = { sessionRepo.attemptBack() }
+            enabled = sessionRepo != null && state.backEnabled,
+            onClick = { sessionRepo?.attemptBack() }
         )
         NavButton(
             iconRes = R.drawable.mozac_ic_forward,
             contentDescription = "Forward",
-            enabled = state.forwardEnabled,
-            onClick = { sessionRepo.goForward() }
+            enabled = sessionRepo != null && state.forwardEnabled,
+            onClick = { sessionRepo?.goForward() }
         )
         NavButton(
             iconRes = R.drawable.mozac_ic_refresh,
             contentDescription = "Reload",
-            enabled = true,
-            onClick = { sessionRepo.reload() }
+            enabled = sessionRepo != null,
+            onClick = { sessionRepo?.reload() }
         )
 
         // ── Checkable actions ──
@@ -104,32 +124,36 @@ fun NavigationControls(
             iconResUnchecked = R.drawable.mozac_ic_pin,
             iconResChecked = R.drawable.mozac_ic_pin_filled,
             contentDescription = if (isCurrentUrlPinned) "Unpin site" else "Pin site",
-            enabled = !isHomepage,
+            enabled = sessionRepo != null && pinnedTileRepo != null && !isHomepage,
             checked = isCurrentUrlPinned,
             onClick = {
-                if (isCurrentUrlPinned) pinnedTileRepo.removePinnedTile(state.currentUrl)
-                else pinnedTileRepo.addPinnedTile(state.currentUrl, null)
+                if (pinnedTileRepo != null) {
+                    if (isCurrentUrlPinned) pinnedTileRepo.removePinnedTile(state.currentUrl)
+                    else pinnedTileRepo.addPinnedTile(state.currentUrl, null)
+                }
             }
         )
         NavCheckableButton(
             iconResUnchecked = R.drawable.mozac_ic_rocket,
             iconResChecked = R.drawable.mozac_ic_rocket_filled,
             contentDescription = if (state.turboModeActive) "Turbo mode on" else "Turbo mode off",
-            enabled = true,
+            enabled = sessionRepo != null,
             checked = state.turboModeActive,
             onClick = {
-                sessionRepo.setTurboModeEnabled(!state.turboModeActive, skipEngineSettingsUpdate = isHomepage)
-                if (!isHomepage) sessionRepo.reload()
+                if (sessionRepo != null) {
+                    sessionRepo.setTurboModeEnabled(!state.turboModeActive, skipEngineSettingsUpdate = isHomepage)
+                    if (!isHomepage) sessionRepo.reload()
+                }
             }
         )
         NavCheckableButton(
             iconResUnchecked = R.drawable.mozac_ic_device_desktop,
             iconResChecked = R.drawable.mozac_ic_device_desktop,
             contentDescription = if (state.desktopModeActive) "Desktop mode on" else "Desktop mode off",
-            enabled = !isHomepage,
+            enabled = sessionRepo != null && !isHomepage,
             checked = state.desktopModeActive,
             onClick = {
-                sessionRepo.setDesktopMode(!state.desktopModeActive)
+                sessionRepo?.setDesktopMode(!state.desktopModeActive)
             }
         )
 

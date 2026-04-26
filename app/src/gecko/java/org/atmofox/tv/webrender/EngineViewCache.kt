@@ -119,6 +119,7 @@ class EngineViewCache(private val sessionRepo: SessionRepo) : LifecycleObserver 
     private val handler = Handler(Looper.getMainLooper())
     private var setupAttempts = 0
     private val maxSetupAttempts = 10
+    private var delegateSetupFailed = false
 
     /**
      * Must be called AFTER SessionFeature.start() has attached the session to the GeckoView.
@@ -126,6 +127,10 @@ class EngineViewCache(private val sessionRepo: SessionRepo) : LifecycleObserver 
      * Will retry with delay if session is not yet available.
      */
     fun setupSessionDelegateIfNeeded() {
+        if (delegateSetupFailed) {
+            return
+        }
+
         val engineView = cachedView ?: return
         val geckoView = (engineView.asView() as FrameLayout).getChildAt(0) as? org.mozilla.geckoview.GeckoView
         val session = geckoView?.session
@@ -138,12 +143,14 @@ class EngineViewCache(private val sessionRepo: SessionRepo) : LifecycleObserver 
                 handler.postDelayed({ setupSessionDelegateIfNeeded() }, 100)
             } else {
                 Log.w("EngineViewCache", "Session is null after $maxSetupAttempts attempts, giving up")
+                delegateSetupFailed = true
             }
             return
         }
 
         // Reset attempts on success
         setupAttempts = 0
+        delegateSetupFailed = false
 
         var lastNonInternalUrl = ""
 
@@ -199,6 +206,7 @@ class EngineViewCache(private val sessionRepo: SessionRepo) : LifecycleObserver 
     private fun clear() {
         handler.removeCallbacksAndMessages(null)
         setupAttempts = 0
+        delegateSetupFailed = false
         sessionRepo.canGoBackTwice = null
         sessionRepo.browserHistoryState = null
         sessionRepo.browserHistoryNavigateToIndex = null

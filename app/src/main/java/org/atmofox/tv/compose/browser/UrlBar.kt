@@ -63,22 +63,25 @@ import org.atmofox.tv.utils.UrlUtils
 @Composable
 fun UrlBar(
     onSubmit: () -> Unit = {},
+    onSubmitUrl: ((String) -> Unit)? = null,
+    observeBrowserState: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val sessionRepo = context.serviceLocator.sessionRepo
-    val currentState = sessionRepo.currentState()
-    val state by sessionRepo.state.collectAsState(
-        initial = currentState
-            ?: org.atmofox.tv.session.SessionRepo.State(
-                backEnabled = false,
-                forwardEnabled = false,
-                desktopModeActive = false,
-                turboModeActive = false,
-                currentUrl = URLs.APP_URL_HOME,
-                loading = false
-            )
+    val sessionRepo = if (observeBrowserState) context.serviceLocator.sessionRepo else null
+    val fallbackState = org.atmofox.tv.session.SessionRepo.State(
+        backEnabled = false,
+        forwardEnabled = false,
+        desktopModeActive = false,
+        turboModeActive = false,
+        currentUrl = URLs.APP_URL_HOME,
+        loading = false
     )
+    val state by if (sessionRepo != null) {
+        sessionRepo.state.collectAsState(initial = sessionRepo.currentState() ?: fallbackState)
+    } else {
+        remember { mutableStateOf(fallbackState) }
+    }
 
     val displayUrl = UrlUtils.toUrlBarDisplay(state.currentUrl)
     var isFocused by remember { mutableStateOf(false) }
@@ -182,7 +185,7 @@ fun UrlBar(
                         } else {
                             UrlUtils.createSearchUrl(context, submitText)
                         }
-                        serviceLocator.sessionUseCases.loadUrl.invoke(url)
+                        onSubmitUrl?.invoke(url) ?: serviceLocator.sessionUseCases.loadUrl.invoke(url)
                         onSubmit()
                     }
                     true
@@ -205,7 +208,7 @@ fun UrlBar(
                     } else {
                         UrlUtils.createSearchUrl(context, text)
                     }
-                    serviceLocator.sessionUseCases.loadUrl.invoke(url)
+                    onSubmitUrl?.invoke(url) ?: serviceLocator.sessionUseCases.loadUrl.invoke(url)
                     onSubmit()
                 }
             }

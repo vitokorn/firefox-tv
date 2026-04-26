@@ -13,9 +13,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.delay
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import mozilla.components.browser.state.action.TabListAction
+import mozilla.components.browser.state.selector.selectedTab
+import mozilla.components.browser.state.state.ContentState
+import mozilla.components.browser.state.state.TabSessionState
 import org.atmofox.tv.ScreenControllerStateMachine
 import org.atmofox.tv.compose.browser.BrowserScreen
 import org.atmofox.tv.compose.menu.MenuOverlay
@@ -25,8 +29,8 @@ import org.atmofox.tv.compose.onboarding.OnboardingScreen
 import org.atmofox.tv.compose.settings.SettingsScreen
 import androidx.compose.runtime.collectAsState
 import org.atmofox.tv.ext.serviceLocator
+import org.atmofox.tv.ext.webRenderComponents
 import org.atmofox.tv.utils.URLs
-import org.atmofox.tv.utils.UrlUtils
 
 /**
  * Root composable for the Firefox TV application.
@@ -44,58 +48,72 @@ fun FirefoxTvApp(
     var currentScreen by rememberSaveable { mutableStateOf(Screen.MenuOverlay) }
     var currentSettingsScreen by rememberSaveable { mutableStateOf(SettingsType.DATA_COLLECTION) }
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val serviceLocator = context.serviceLocator
-    val sessionRepo = serviceLocator.sessionRepo
-    val screenController = serviceLocator.screenController
-
-    val state by sessionRepo.state.collectAsState()
-    var previousUrl by remember { mutableStateOf(state.currentUrl) }
-
-    // Auto-switch from Browser to MenuOverlay when back navigation lands on internal URL
-    LaunchedEffect(state.currentUrl) {
-        if (currentScreen == Screen.Browser &&
-            previousUrl.isNotEmpty() &&
-            !UrlUtils.isInternalBrowserUrl(previousUrl) &&
-            UrlUtils.isInternalBrowserUrl(state.currentUrl)
-        ) {
-            currentScreen = Screen.MenuOverlay
+    var isBrowserInitialized by rememberSaveable { mutableStateOf(false) }
+    var pendingMenuUrlLoad by rememberSaveable { mutableStateOf<String?>(null) }
+    val shouldInitializeScreenController = isBrowserInitialized || currentScreen != Screen.MenuOverlay
+    val composeActiveScreen = when (currentScreen) {
+        Screen.Browser -> ScreenControllerStateMachine.ActiveScreen.WEB_RENDER
+        Screen.MenuOverlay -> ScreenControllerStateMachine.ActiveScreen.NAVIGATION_OVERLAY
+        Screen.Settings -> ScreenControllerStateMachine.ActiveScreen.SETTINGS
+        Screen.Onboarding -> ScreenControllerStateMachine.ActiveScreen.WEB_RENDER
+    }
+    val screenController = if (shouldInitializeScreenController) {
+        remember(serviceLocator) {
+            serviceLocator.screenController.apply {
+                setActiveScreenForCompose(composeActiveScreen)
+            }
         }
-        previousUrl = state.currentUrl
+    } else {
+        null
     }
 
-    // Polling fallback: ensure SessionRepo emits state updates even if
-    // store.observeManually callback is not invoked (e.g. due to lifecycle issues).
-    // update() uses setIfNew so this is cheap when nothing changed.
-    LaunchedEffect(Unit) {
-        while (true) {
-            sessionRepo.update()
-            delay(5000)
+    LaunchedEffect(currentScreen, isBrowserInitialized) {
+        if (currentScreen == Screen.Browser && !isBrowserInitialized) {
+            // Initialize browser engine/store/session lazily on first browser entry.
+            if (context.webRenderComponents.store.state.selectedTab == null) {
+                val newTab = TabSessionState(
+                    id = "initial-session",
+                    content = ContentState(url = URLs.APP_URL_HOME)
+                )
+                context.webRenderComponents.store.dispatch(TabListAction.AddTabAction(newTab, select = true))
+            }
+            serviceLocator.sessionRepo.update()
+            lifecycleOwner.lifecycle.addObserver(serviceLocator.engineViewCache)
+            isBrowserInitialized = true
+        }
+    }
+
+    LaunchedEffect(isBrowserInitialized, pendingMenuUrlLoad) {
+        val url = pendingMenuUrlLoad
+        if (isBrowserInitialized && url != null) {
+            serviceLocator.sessionUseCases.loadUrl.invoke(url)
+            pendingMenuUrlLoad = null
         }
     }
 
     // Notify ScreenController of active screen changes so cursor model / telemetry work
-    LaunchedEffect(currentScreen) {
-        val activeScreen = when (currentScreen) {
-            Screen.Browser -> ScreenControllerStateMachine.ActiveScreen.WEB_RENDER
-            Screen.MenuOverlay -> ScreenControllerStateMachine.ActiveScreen.NAVIGATION_OVERLAY
-            Screen.Settings -> ScreenControllerStateMachine.ActiveScreen.SETTINGS
-            Screen.Onboarding -> ScreenControllerStateMachine.ActiveScreen.WEB_RENDER
+    LaunchedEffect(currentScreen, screenController) {
+        if (screenController != null) {
+            screenController.setActiveScreenForCompose(composeActiveScreen)
         }
-        screenController.setActiveScreenForCompose(activeScreen)
     }
 
     // Observe ScreenController state changes from non-Compose code (e.g., FxA login)
-    val controllerScreen by screenController.currentActiveScreen.collectAsState()
+    val controllerScreen = screenController?.currentActiveScreen?.collectAsState()?.value
     LaunchedEffect(controllerScreen) {
-        val targetScreen = when (controllerScreen) {
-            ScreenControllerStateMachine.ActiveScreen.WEB_RENDER -> Screen.Browser
-            ScreenControllerStateMachine.ActiveScreen.NAVIGATION_OVERLAY -> Screen.MenuOverlay
-            ScreenControllerStateMachine.ActiveScreen.SETTINGS -> Screen.Settings
-            ScreenControllerStateMachine.ActiveScreen.FXA_PROFILE -> Screen.Settings
-            else -> currentScreen
-        }
-        if (targetScreen != currentScreen) {
-            currentScreen = targetScreen
+        if (controllerScreen != null) {
+            val targetScreen = when (controllerScreen) {
+                ScreenControllerStateMachine.ActiveScreen.WEB_RENDER -> Screen.Browser
+                ScreenControllerStateMachine.ActiveScreen.NAVIGATION_OVERLAY -> Screen.MenuOverlay
+                ScreenControllerStateMachine.ActiveScreen.SETTINGS -> Screen.Settings
+                ScreenControllerStateMachine.ActiveScreen.FXA_PROFILE -> Screen.Settings
+                else -> currentScreen
+            }
+            if (targetScreen != currentScreen) {
+                currentScreen = targetScreen
+            }
         }
     }
 
@@ -110,7 +128,7 @@ fun FirefoxTvApp(
 
     // On Browser screen, intercept hardware BACK to navigate browser history first
     BackHandler(enabled = currentScreen == Screen.Browser) {
-        val handled = sessionRepo.attemptBack()
+        val handled = serviceLocator.sessionRepo.attemptBack()
         if (!handled) {
             currentScreen = Screen.MenuOverlay
         }
@@ -129,7 +147,11 @@ fun FirefoxTvApp(
                         currentScreen = Screen.Settings
                     },
                     onNavigateHome = {
-                        serviceLocator.sessionUseCases.loadUrl.invoke(URLs.APP_URL_HOME)
+                        pendingMenuUrlLoad = URLs.APP_URL_HOME
+                        currentScreen = Screen.Browser
+                    },
+                    onNavigateToUrl = { url ->
+                        pendingMenuUrlLoad = url
                         currentScreen = Screen.Browser
                     }
                 )

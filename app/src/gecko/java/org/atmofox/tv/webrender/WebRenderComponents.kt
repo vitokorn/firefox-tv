@@ -45,8 +45,10 @@ private class VisualContextWrapper(
 
 class WebRenderComponents(applicationContext: Context, systemUserAgent: String) {
     // The first intent the App was launched with.  Used to pass configuration through to Gecko.
+    @Volatile
     private var launchSafeIntent: SafeIntent? = null
 
+    @Synchronized
     fun notifyLaunchWithSafeIntent(safeIntent: SafeIntent): Boolean {
         // We can't access the property reference outside of our own lexical scope,
         // so this helper must be in this class.
