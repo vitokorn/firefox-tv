@@ -9,8 +9,6 @@
     <string name="firefox_tv_brand_name" tools:keep="@string/firefox_tv_brand_name">Firefox TV</string>
     <string name="firefox_tv_brand_name_short" tools:keep="@string/firefox_tv_brand_name_short">Firefox</string>
 
-    <!-- The brand name of our partner company, Pocket. -->
-    <string name="pocket_brand_name">Pocket</string>
 
     <!-- Label used for buttons, e.g. in dialogs -->
     <string name="action_cancel">Cancelar</string>
@@ -163,29 +161,8 @@
     <string name="notification_pinned_site">Fixado à tela inicial do Firefox TV</string>
     <string name="notification_unpinned_site">Removido da tela inicial do Firefox TV</string>
 
-    <!-- The title of a tutorial shown to introduce Pocket video recommendations.
-    %1$s will be replaced with the Pocket brand name. -->
-    <string name="pocket_home_tutorial_title">Apresentação de vídeos recomendados pelo %1$s</string>
-    <!-- The description text of a tutorial shown to introduce Pocket video recommendations.
-    %1$s will be replaced with the Pocket brand name. -->
-    <string name="pocket_home_tutorial_description">Os vídeos mais interessantes da internet. Recomendados pelo %1$s, agora parte da Mozilla.</string>
-    <!-- The text on the dismiss button of a tutorial shown to introduce Pocket video recommendations. -->
-    <string name="pocket_home_tutorial_dismiss_button">Ok, entendi</string>
-    <!-- Spoken to screen reader users when they focus the Pocket tile. Clicking this tile will take them to the
-         Pocket video recommendations feed.
-    %1$s will be replaced with the Pocket brand name. -->
-    <string name="pocket_home_a11y_tile_focused">Recomendação de vídeos do %1$s</string>
-    <!-- Spoken by screen reader when they focus the "?" button on the Pocket Video feed screen,
-    which will shows the Pocket tutorial again -->
-    <string name="pocket_info_a11y">Sobre o Pocket</string>
 
 
-    <string name="pocket_video_feed_recommended_videos_title">Vídeos recomendados</string>
-    <!-- Text displayed when the Pocket video recommendations feed failed to load.
-    %1$s will be replaced with the Pocket brand name. -->
-    <string name="pocket_video_feed_failed_to_load">Estamos com problemas na exibição de recomendações de vídeos do %1$s.</string>
-    <!-- Text displayed on a button to reload the Pocket video recommendations feed if it failed to load. -->
-    <string name="pocket_video_feed_reload_button">Tentar novamente</string>
 
     <!--Request desktop site strings-->
     <!-- Content description for Request desktop version button-->

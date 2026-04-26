@@ -9,7 +9,7 @@
     android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/pocket_onboarding_background">
+    android:background="@color/onboarding_background">
 
     <TextView
         android:id="@+id/titleText"
@@ -48,6 +48,6 @@
         android:id="@+id/tv_onboarding_button"
         style="@style/TVOnboardingButton"
         android:layout_marginBottom="60dp"
-        android:text="@string/pocket_home_tutorial_dismiss_button" />
+        android:text="@string/action_ok" />
 
 </LinearLayout>

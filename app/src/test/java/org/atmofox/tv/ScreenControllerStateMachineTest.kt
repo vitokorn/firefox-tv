@@ -55,6 +55,6 @@ class ScreenControllerStateMachineTest {
         assertEquals(ADD_OVERLAY, ScreenControllerStateMachine.getNewStateMenuPress(currentActiveScreen, false))
     }
 
-    // Pocket and Settings fragments will be turned into channels, so they do not have tests
+    // Settings fragments will be turned into channels, so they do not have tests
     // TODO remove this comment once channels have been implemented
 }

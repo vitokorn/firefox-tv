@@ -71,7 +71,7 @@ class MainActivity : LocaleAwareAppCompatActivity(), MediaSessionHolder, OnUrlEn
         (application as FirefoxApplication).visibilityLifeCycleCallback.currentActivity = this
 
         traceStartupSection("fftv.main.public_suffix_init") {
-            PublicSuffix.init(this) // Used by Pocket Video feed & custom home tiles.
+            PublicSuffix.init(this) // Used by custom home tiles.
         }
         initMediaSession()
 

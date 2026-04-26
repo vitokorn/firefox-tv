@@ -60,7 +60,7 @@ data class ChannelTile(
          * See [DefaultChannelAdapter.onBindViewHolder] for an example
          */
         fun setChannelMarginByPosition(view: View, context: Context, position: Int, itemCount: Int) {
-            val defaultItemHorizontalMargin = context.getDimenPixelSize(R.dimen.pocket_video_item_horizontal_margin)
+            val defaultItemHorizontalMargin = context.getDimenPixelSize(R.dimen.channel_item_horizontal_margin)
             val overlayMarginStart = context.getDimenPixelSize(R.dimen.overlay_margin_start)
             val overlayMarginEnd = context.getDimenPixelSize(R.dimen.overlay_margin_end)
 

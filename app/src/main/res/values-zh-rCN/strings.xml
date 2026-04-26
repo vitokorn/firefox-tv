@@ -9,8 +9,6 @@
     <string name="firefox_tv_brand_name" tools:keep="@string/firefox_tv_brand_name">Firefox TV</string>
     <string name="firefox_tv_brand_name_short" tools:keep="@string/firefox_tv_brand_name_short">Firefox</string>
 
-    <!-- The brand name of our partner company, Pocket. -->
-    <string name="pocket_brand_name">Pocket</string>
 
     <!-- Label used for buttons, e.g. in dialogs -->
     <string name="action_cancel">取消</string>
@@ -163,29 +161,8 @@
     <string name="notification_pinned_site">已固定到 Firefox TV 主屏幕</string>
     <string name="notification_unpinned_site">已从 Firefox TV 主屏幕移除</string>
 
-    <!-- The title of a tutorial shown to introduce Pocket video recommendations.
-    %1$s will be replaced with the Pocket brand name. -->
-    <string name="pocket_home_tutorial_title">介绍由“%1$s”推荐的视频</string>
-    <!-- The description text of a tutorial shown to introduce Pocket video recommendations.
-    %1$s will be replaced with the Pocket brand name. -->
-    <string name="pocket_home_tutorial_description">网络上最有趣的视频。由 Mozilla 旗下 %1$s 为您推荐。</string>
-    <!-- The text on the dismiss button of a tutorial shown to introduce Pocket video recommendations. -->
-    <string name="pocket_home_tutorial_dismiss_button">我明白了</string>
-    <!-- Spoken to screen reader users when they focus the Pocket tile. Clicking this tile will take them to the
-         Pocket video recommendations feed.
-    %1$s will be replaced with the Pocket brand name. -->
-    <string name="pocket_home_a11y_tile_focused">由“%1$s”推荐的视频</string>
-    <!-- Spoken by screen reader when they focus the "?" button on the Pocket Video feed screen,
-    which will shows the Pocket tutorial again -->
-    <string name="pocket_info_a11y">关于 Pocket</string>
 
 
-    <string name="pocket_video_feed_recommended_videos_title">推荐视频</string>
-    <!-- Text displayed when the Pocket video recommendations feed failed to load.
-    %1$s will be replaced with the Pocket brand name. -->
-    <string name="pocket_video_feed_failed_to_load">呃，我们在显示由“%1$s”推荐的视频时遇到一些问题。</string>
-    <!-- Text displayed on a button to reload the Pocket video recommendations feed if it failed to load. -->
-    <string name="pocket_video_feed_reload_button">重试</string>
 
     <!--Request desktop site strings-->
     <!-- Content description for Request desktop version button-->

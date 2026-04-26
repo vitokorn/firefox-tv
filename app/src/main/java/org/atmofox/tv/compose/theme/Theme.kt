@@ -31,7 +31,7 @@ val PhotonGrey90 = Color(0xFF0C0C0D)
 val Ink80 = Color(0xFF333540)
 val TvInk = Color(0xFF0C0C15)
 val TvGray2 = Color(0xFFA0A0A3)
-val PocketCoral = Color(0xFFEF4056)
+val ErrorCoral = Color(0xFFEF4056)
 
 private val TvDarkColorScheme = darkColorScheme(
     primary = PhotonBlue50,
@@ -57,7 +57,7 @@ private val TvDarkColorScheme = darkColorScheme(
     surfaceVariant = PhotonGrey70,
     onSurfaceVariant = TvGray2,
 
-    error = PocketCoral,
+    error = ErrorCoral,
     onError = PhotonGrey10,
     errorContainer = Color(0xFF93000A),
     onErrorContainer = Color(0xFFFFDAD6),

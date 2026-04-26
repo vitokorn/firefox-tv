@@ -77,6 +77,6 @@ interface TestDependencyFactory {
  */
 private fun Bundle.extractClass(): String? {
     // The class is stored in the format of {class}#{test}
-    // e.g., org.atmofox.tv.ui.PocketBasicUserFlowTest#pocketBasicUserFlowTest
+    // e.g., org.atmofox.tv.ui.BasicUserFlowTest#basicUserFlowTest
     return this.getString("class")?.split("#")?.firstOrNull()
     }

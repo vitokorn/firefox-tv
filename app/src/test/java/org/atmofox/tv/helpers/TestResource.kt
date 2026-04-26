@@ -4,11 +4,9 @@
 
 package org.atmofox.tv.helpers
 
-private const val POCKET_DIR = "pocket"
-
 /** Accessors to resources used in testing. These files are available in `app/src/test/resources`. */
 enum class TestResource(private val path: String) {
-    POCKET_VIDEO_RECOMMENDATION("$POCKET_DIR/video_recommendations.json");
+    ;
 
     fun get(): String = this::class.java.classLoader!!.getResource(path)!!.readText()
 }

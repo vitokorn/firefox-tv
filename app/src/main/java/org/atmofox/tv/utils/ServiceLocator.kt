@@ -2,10 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// We want the Pocket code from a-c: #1976. Unfortunately, the compiler won't let
-// us suppress individual lines so we have to suppress the file.
-@file:Suppress("DEPRECATION")
-
 package org.atmofox.tv.utils
 
 import android.app.Application
@@ -38,21 +34,6 @@ import org.atmofox.tv.webrender.cursor.CursorModel
  * See: https://en.wikipedia.org/wiki/Service_locator_pattern
  *
  * ### Dependencies can be defined as follows:
- *
- *   #### Lazy, app-wide Singleton:
- *   ```
- *   open val pocket by lazy { Pocket() }
- *   ```
- *
- *   #### Eager, app-wide singleton:
- *   ```
- *   open val pocket = Pocket()
- *   ```
- *
- *   #### New value each time:
- *   ```
- *   open val pocket: Pocket get() = Pocket()
- *   ```
  *
  *   #### Concrete value for interface:
  *   ```
