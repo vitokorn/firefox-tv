@@ -2,30 +2,25 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.atmofox.tv.utils;
+package org.atmofox.tv.utils
 
-import android.content.Context;
-import androidx.annotation.IntRange;
-import androidx.annotation.NonNull;
-import androidx.annotation.VisibleForTesting;
-import androidx.annotation.WorkerThread;
-import android.text.TextUtils;
-import android.util.Patterns;
-
-import org.atmofox.tv.utils.publicsuffix.PublicSuffix;
-
-import java.net.URI;
+import android.content.Context
+import android.text.TextUtils
+import android.util.Patterns
+import androidx.annotation.IntRange
+import androidx.annotation.VisibleForTesting
+import androidx.annotation.WorkerThread
+import org.atmofox.tv.utils.publicsuffix.PublicSuffix
+import java.net.URI
 
 /** Methods for formatting a domain URI. */
-public class FormattedDomain {
-
-    private FormattedDomain() {}
+object FormattedDomain {
 
     /**
      * Returns the domain for the given URI, formatted by the other available parameters.
      *
      * A public suffix is a top-level domain. For the input, "https://github.com", you can specify
-     * {@code shouldIncludePublicSuffix}:
+     * `shouldIncludePublicSuffix`:
      * - true: "github.com"
      * - false: "github"
      *
@@ -54,85 +49,89 @@ public class FormattedDomain {
      *
      * @return the formatted domain, or the empty String if the host cannot be found.
      */
-    @NonNull
+    @JvmStatic
     @WorkerThread // calls PublicSuffix methods.
-    public static String format(@NonNull final Context context, @NonNull final URI uri,
-                                final boolean shouldIncludePublicSuffix, @IntRange(from = 0) final int subdomainCount) {
+    fun format(
+        context: Context?,
+        uri: URI?,
+        shouldIncludePublicSuffix: Boolean,
+        @IntRange(from = 0) subdomainCount: Int
+    ): String {
         if (context == null) {
-            throw new NullPointerException("Expected non-null Context argument");
+            throw NullPointerException("Expected non-null Context argument")
         }
         if (uri == null) {
-            throw new NullPointerException("Expected non-null uri argument");
+            throw NullPointerException("Expected non-null uri argument")
         }
         if (subdomainCount < 0) {
-            throw new IllegalArgumentException("Expected subdomainCount >= 0.");
+            throw IllegalArgumentException("Expected subdomainCount >= 0.")
         }
 
-        final String host = uri.getHost();
+        val host = uri.host
         if (TextUtils.isEmpty(host)) {
-            return ""; // There's no host so there's no domain to retrieve.
+            return "" // There's no host so there's no domain to retrieve.
         }
 
         if (isIPv4(host) ||
-                isIPv6(uri) ||
-                !host.contains(".")) { // If this is just a hostname and not a FQDN, use the entire hostname.
-            return host;
+            isIPv6(uri) ||
+            !host.contains(".")
+        ) { // If this is just a hostname and not a FQDN, use the entire hostname.
+            return host
         }
 
-        final String domainStr = PublicSuffix.getPublicSuffix(context, host, subdomainCount + 1);
+        val domainStr = PublicSuffix.getPublicSuffix(context, host, subdomainCount + 1)
         if (TextUtils.isEmpty(domainStr)) {
             // There is no public suffix found so we assume the whole host is a domain.
-            return stripSubdomains(host, subdomainCount);
+            return stripSubdomains(host, subdomainCount)
         }
 
-        if (!shouldIncludePublicSuffix) {
+        return if (!shouldIncludePublicSuffix) {
             // We could be slightly more efficient if we wrote a new algorithm rather than using PublicSuffix twice
             // but I don't think it's worth the time and it'd complicate the code with more independent branches.
-            return PublicSuffix.stripPublicSuffix(context, domainStr);
+            PublicSuffix.stripPublicSuffix(context, domainStr)
+        } else {
+            domainStr
         }
-        return domainStr;
     }
 
-    public static String stripCommonPrefixes(@NonNull final String host) {
+    @JvmStatic
+    fun stripCommonPrefixes(host: String): String {
         // In contrast to desktop, we also strip mobile subdomains,
         // since its unlikely users are intentionally typing them
-        int start = 0;
-
-        if (host.startsWith("www.")) {
-            start = 4;
-        } else if (host.startsWith("mobile.")) {
-            start = 7;
-        } else if (host.startsWith("m.")) {
-            start = 2;
+        return when {
+            host.startsWith("www.") -> host.substring(4)
+            host.startsWith("mobile.") -> host.substring(7)
+            host.startsWith("m.") -> host.substring(2)
+            else -> host
         }
-
-        return host.substring(start);
     }
 
     /** Strips any subdomains from the host over the given limit. */
-    private static String stripSubdomains(String host, final int desiredSubdomainCount) {
-        int includedSubdomainCount = 0;
-        for (int i = host.length() - 1; i >= 0; --i) {
-            if (host.charAt(i) == '.') {
+    private fun stripSubdomains(host: String, desiredSubdomainCount: Int): String {
+        var includedSubdomainCount = 0
+        for (i in host.length - 1 downTo 0) {
+            if (host[i] == '.') {
                 if (includedSubdomainCount >= desiredSubdomainCount) {
-                    return host.substring(i + 1, host.length());
+                    return host.substring(i + 1, host.length)
                 }
 
-                includedSubdomainCount += 1;
+                includedSubdomainCount += 1
             }
         }
 
         // There are fewer subdomains than the total we'll accept so return them all!
-        return host;
+        return host
     }
 
-    @VisibleForTesting static boolean isIPv4(final String host) {
-        return Patterns.IP_ADDRESS.matcher(host).matches();
+    @VisibleForTesting
+    @JvmStatic
+    fun isIPv4(host: String): Boolean {
+        return Patterns.IP_ADDRESS.matcher(host).matches()
     }
 
     // impl via FFiOS: https://github.com/mozilla-mobile/firefox-ios/blob/deb9736c905cdf06822ecc4a20152df7b342925d/Shared/Extensions/NSURLExtensions.swift#L292
-    private static boolean isIPv6(final URI uri) {
-        final String host = uri.getHost();
-        return !TextUtils.isEmpty(host) && host.contains(":");
+    private fun isIPv6(uri: URI): Boolean {
+        val host = uri.host
+        return !TextUtils.isEmpty(host) && host.contains(":")
     }
 }

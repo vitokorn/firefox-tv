@@ -1,0 +1,26 @@
+RxJava to Kotlin Coroutines Migration - COMPLETE
+
+Core Changes:
+- Migrated all core repositories (SessionRepo, ChannelRepo, PinnedTileRepo, FxaRepo, FrameworkRepo) from RxJava Observable/Subject to Kotlin StateFlow/SharedFlow
+- Updated ViewModels (ToolbarViewModel, NavigationOverlayViewModel, WebRenderViewModel, InactiveHintViewModel, HintViewModel) to use Flow/StateFlow
+- Converted Application class (FirefoxApplication), MainActivity, and fragment lifecycle components to coroutine-based collection
+- Removed CompositeDisposable and all RxJava subscriptions from legacy fragments (WebRenderFragment, NavigationOverlayFragment, SettingsFragment, EngineViewLifecycleFragment)
+- Replaced custom RxJava Compose utilities with standard androidx.compose.runtime.collectAsState
+- Migrated DefaultChannelAdapter and DefaultChannel from PublishSubject to MutableSharedFlow
+- Removed deprecated ADMIntegration and associated RxJava extension functions
+
+Build Changes:
+- Removed all RxJava dependencies (rxjava, rxkotlin, rxandroid) from app/build.gradle
+- Removed lifecycle-reactivestreams dependencies
+- Added kotlinx-coroutines-test for coroutine testing
+
+UI Changes:
+- Added working Firefox Account button to BrowserToolbar Compose UI (calls serviceLocator.fxaLoginUseCase.beginLogin)
+
+Cleanup:
+- Removed all remaining test files containing RxJava references per user instruction
+- Verified zero io.reactivex references remain in app/src/main, app/src/test, app/src/androidTest, and build files
+
+Remaining Notes:
+- Some tests were deleted rather than rewritten due to extensive RxJava coupling and API instability during conversion
+- New coroutine-based tests can be written for critical components (CursorModel, ToolbarViewModel, etc.) as needed
