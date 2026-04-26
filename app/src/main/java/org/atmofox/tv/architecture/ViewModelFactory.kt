@@ -7,7 +7,6 @@ package org.atmofox.tv.architecture
 import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.ViewModelProviders
 import org.atmofox.tv.R
 import org.atmofox.tv.hint.HintContentFactory
 import org.atmofox.tv.navigationoverlay.ChannelTitles
@@ -18,7 +17,7 @@ import org.atmofox.tv.utils.ServiceLocator
 import org.atmofox.tv.webrender.WebRenderViewModel
 
 /**
- * Used by [ViewModelProviders] to instantiate [ViewModel]s with constructor arguments.
+ * Used by [ViewModelProvider] to instantiate [ViewModel]s with constructor arguments.
  *
  * This should be used through [FirefoxViewModelProviders.of].
  * Example usage:

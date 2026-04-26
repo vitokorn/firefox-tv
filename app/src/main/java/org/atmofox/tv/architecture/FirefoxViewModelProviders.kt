@@ -5,7 +5,6 @@
 package org.atmofox.tv.architecture
 
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.ViewModelProviders
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import org.atmofox.tv.ext.serviceLocator
@@ -18,11 +17,11 @@ import org.atmofox.tv.ext.serviceLocator
 object FirefoxViewModelProviders {
 
     fun of(activity: FragmentActivity): ViewModelProvider {
-        return ViewModelProviders.of(activity, activity.serviceLocator.viewModelFactory)
+        return ViewModelProvider(activity, activity.serviceLocator.viewModelFactory)
     }
 
     fun of(fragment: Fragment): ViewModelProvider {
         // If we're attempting to retrieve a view model, we should be attached to a context already.
-        return ViewModelProviders.of(fragment, fragment.context!!.serviceLocator.viewModelFactory)
+        return ViewModelProvider(fragment, fragment.context!!.serviceLocator.viewModelFactory)
     }
 }
