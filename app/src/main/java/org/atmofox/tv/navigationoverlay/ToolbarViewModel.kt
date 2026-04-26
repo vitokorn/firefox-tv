@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import mozilla.components.support.base.observer.Consumable
 import org.atmofox.tv.R
 import org.atmofox.tv.channels.pinnedtile.PinnedTileRepo
@@ -23,10 +24,12 @@ import org.atmofox.tv.session.SessionRepo
 import org.atmofox.tv.telemetry.TelemetryIntegration
 import org.atmofox.tv.utils.URLs
 import org.atmofox.tv.utils.UrlUtils
+import org.atmofox.tv.webrender.EngineViewCache
 
 class ToolbarViewModel(
     private val sessionRepo: SessionRepo,
     private val pinnedTileRepo: PinnedTileRepo,
+    private val engineViewCache: EngineViewCache,
     private val telemetryIntegration: TelemetryIntegration = TelemetryIntegration.INSTANCE
 ) : ViewModel() {
 
@@ -50,7 +53,7 @@ class ToolbarViewModel(
     }
 
     // We use events in order to decouple the ViewModel from holding a reference to a context
-    private val _events = MutableSharedFlow<Consumable<Action>>(extraBufferCapacity = 1)
+    private val _events = MutableSharedFlow<Consumable<Action>>(extraBufferCapacity = 2)
     val events: SharedFlow<Consumable<Action>> = _events.asSharedFlow()
 
     val state: StateFlow<State> = combine(sessionRepo.state, pinnedTileRepo.pinnedTiles) { sessionState, pinnedTiles ->
@@ -103,19 +106,22 @@ class ToolbarViewModel(
 
     @UiThread
     fun pinButtonClicked() {
-        val pinChecked = state.value.pinChecked
-        val url = sessionRepo.state.value.currentUrl
+        viewModelScope.launch {
+            val pinChecked = state.value.pinChecked
+            val url = sessionRepo.state.value.currentUrl
 
-        sendOverlayClickTelemetry()
+            sendOverlayClickTelemetry()
 
-        if (pinChecked) {
-            pinnedTileRepo.removePinnedTile(url)
-            _events.tryEmit(Consumable.from(Action.ShowTopToast(R.string.notification_unpinned_site)))
-        } else {
-            pinnedTileRepo.addPinnedTile(url, sessionRepo.currentURLScreenshot())
-            _events.tryEmit(Consumable.from(Action.ShowTopToast(R.string.notification_pinned_site)))
+            if (pinChecked) {
+                pinnedTileRepo.removePinnedTile(url)
+                _events.tryEmit(Consumable.from(Action.ShowTopToast(R.string.notification_unpinned_site)))
+            } else {
+                val screenshot = engineViewCache.captureThumbnail()
+                pinnedTileRepo.addPinnedTile(url, screenshot)
+                _events.tryEmit(Consumable.from(Action.ShowTopToast(R.string.notification_pinned_site)))
+            }
+            hideOverlay()
         }
-        hideOverlay()
     }
 
     @UiThread

@@ -50,7 +50,7 @@
 - [x] `FxaRepo.kt` - `beginAuthenticationAsync()` → `beginAuthentication()` (suspend)
 - [x] `FxaRepo.kt` - `logoutAsync()` → `logout()` (suspend)
 - [x] `FxaRepo.kt` - `start()` replaces `initAsync()`
-- [ ] `FxaLoginUseCase.kt` - `finishAuthenticationAsync()` API may need update
+- [x] `FxaLoginUseCase.kt` - Already uses `finishAuthentication()` (non-async). `beginAuthenticationAsync()` renamed to `beginAuthentication()` in `FxaRepo.kt`.
 
 #### 5. Fretboard/Experiments (MEDIUM)
 - [ ] `FretboardProvider.kt` - `service-fretboard` removed, needs Nimbus stub or removal
@@ -59,8 +59,7 @@
 - [ ] `IntentValidator.kt` - References removed fretboard
 
 #### 6. Autocomplete/T toolbar (LOW)
-- [ ] `ToolbarUiController.kt` - `AutocompleteProvider` supertype missing from classpath
-- [ ] May need `concept-toolbar` dependency or use alternative API
+- [x] `ToolbarUiController.kt` / `AutocompleteProvider` - Legacy toolbar removed; replaced by Compose `BrowserToolbar.kt` / `NavigationControls.kt`
 
 #### 7. LiveData/ReactiveStreams (LOW)
 - [x] Added `lifecycle-reactivestreams-ktx` dependency

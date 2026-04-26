@@ -4,8 +4,6 @@
 
 package org.atmofox.tv
 
-import mozilla.components.service.glean.Glean
-import androidx.work.testing.WorkManagerTestInitHelper
 import mozilla.components.concept.engine.utils.EngineVersion
 import org.atmofox.tv.helpers.EngineVariantFunctionality
 import org.atmofox.tv.helpers.FirefoxRobolectricTestRunner
@@ -44,11 +42,18 @@ class TestFirefoxApplication : FirefoxApplication() {
      */
     override fun getEngineViewVersion() = EngineVersion(1, 1, 1, "dummyVersion")
 
+    override fun initGlean() {
+        // Skip Glean initialization in unit tests: it requires native libraries unavailable in JVM.
+    }
+
+    override fun initRustDependencies() {
+        // Skip Rust native library initialization in unit tests: JNA libs are incompatible with test runner architecture.
+    }
+
     /**
      * This is used to disable ping upload when running tests.
      */
     override fun setGleanUpload() {
-        WorkManagerTestInitHelper.initializeTestWorkManager(applicationContext)
-        Glean.setUploadEnabled(false)
+        // Glean initialization is skipped via overridden initGlean().
     }
 }

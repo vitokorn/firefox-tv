@@ -34,6 +34,15 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.withStyle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import mozilla.components.browser.domains.autocomplete.ShippedDomainsProvider
 import org.atmofox.tv.R
 import org.atmofox.tv.compose.theme.Ink80
 import org.atmofox.tv.compose.theme.PhotonBlue50
@@ -75,15 +84,56 @@ fun UrlBar(
     var isFocused by remember { mutableStateOf(false) }
     var editedText by remember { mutableStateOf("") }
 
-    // Initialize editing buffer when focus is gained
+    val domainsProvider = remember { ShippedDomainsProvider() }
+    var autocompleteResult by remember { mutableStateOf<mozilla.components.concept.toolbar.AutocompleteResult?>(null) }
+
+    LaunchedEffect(Unit) {
+        domainsProvider.initialize(context)
+    }
+
     LaunchedEffect(isFocused) {
         if (isFocused) {
             editedText = displayUrl
+            autocompleteResult = null
         }
+    }
+
+    LaunchedEffect(editedText, isFocused) {
+        if (!isFocused || editedText.isBlank() || UrlUtils.isUrl(editedText)) {
+            autocompleteResult = null
+            return@LaunchedEffect
+        }
+        val result = withContext(Dispatchers.IO) {
+            domainsProvider.getAutocompleteSuggestion(editedText)
+        }
+        autocompleteResult = result?.takeIf { it.text.startsWith(editedText, ignoreCase = true) }
     }
 
     // Use direct displayUrl when not focused (no async delay), edited buffer when focused
     val text = if (isFocused) editedText else displayUrl
+    val autocompleteSuffix = if (isFocused && autocompleteResult != null) {
+        autocompleteResult!!.text.removePrefix(editedText)
+    } else ""
+
+    val autocompleteTransformation = remember(autocompleteSuffix) {
+        VisualTransformation { original ->
+            if (autocompleteSuffix.isEmpty()) {
+                TransformedText(buildAnnotatedString { append(original.text) }, OffsetMapping.Identity)
+            } else {
+                val annotated = buildAnnotatedString {
+                    append(original.text)
+                    withStyle(SpanStyle(color = PhotonGrey40)) {
+                        append(autocompleteSuffix)
+                    }
+                }
+                val mapping = object : OffsetMapping {
+                    override fun originalToTransformed(offset: Int): Int = offset.coerceIn(0, original.text.length)
+                    override fun transformedToOriginal(offset: Int): Int = offset.coerceIn(0, original.text.length)
+                }
+                TransformedText(annotated, mapping)
+            }
+        }
+    }
 
     val serviceLocator = context.serviceLocator
 
@@ -95,7 +145,11 @@ fun UrlBar(
 
     BasicTextField(
         value = text,
-        onValueChange = { editedText = it },
+        onValueChange = {
+            editedText = it
+            autocompleteResult = null
+        },
+        visualTransformation = autocompleteTransformation,
         modifier = modifier
             .fillMaxWidth()
             .height(48.dp)
@@ -107,17 +161,26 @@ fun UrlBar(
             }
             .onPreviewKeyEvent { keyEvent ->
                 if (isFocused && keyEvent.type == KeyEventType.KeyDown &&
-                    (keyEvent.key == Key.DirectionLeft || keyEvent.key == Key.DirectionRight)
+                    (keyEvent.key == Key.DirectionRight)
+                ) {
+                    autocompleteResult?.let {
+                        editedText = it.text
+                        autocompleteResult = null
+                    }
+                    true
+                } else if (isFocused && keyEvent.type == KeyEventType.KeyDown &&
+                    (keyEvent.key == Key.DirectionLeft)
                 ) {
                     true
                 } else if (isFocused && keyEvent.type == KeyEventType.KeyDown &&
                     (keyEvent.key == Key.Enter || keyEvent.key == Key.NumPadEnter)
                 ) {
-                    if (text.isNotEmpty() && text != URLs.APP_URL_HOME) {
-                        val url = if (UrlUtils.isUrl(text)) {
-                            text
+                    val submitText = autocompleteResult?.text ?: text
+                    if (submitText.isNotEmpty() && submitText != URLs.APP_URL_HOME) {
+                        val url = if (UrlUtils.isUrl(submitText)) {
+                            submitText
                         } else {
-                            UrlUtils.createSearchUrl(context, text)
+                            UrlUtils.createSearchUrl(context, submitText)
                         }
                         serviceLocator.sessionUseCases.loadUrl.invoke(url)
                         onSubmit()

@@ -112,7 +112,8 @@ open class FirefoxApplication : LocaleAwareApplication() {
         }
     }
 
-    private fun initRustDependencies() {
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    protected open fun initRustDependencies() {
         Megazord.init()
         RustHttpConfig.setClient(lazy { OkHttpClient(OkHttpWrapper.client, this) })
     }
@@ -141,7 +142,8 @@ open class FirefoxApplication : LocaleAwareApplication() {
         }
     }
 
-    private fun initGlean() {
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    protected open fun initGlean() {
         setGleanUpload()
         // LegacyIds.clientId.set(UUID.fromString(TelemetryIntegration.INSTANCE.clientId))
         Glean.initialize(

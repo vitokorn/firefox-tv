@@ -35,6 +35,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import android.widget.Toast
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import mozilla.components.support.base.observer.Consumable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -56,14 +60,24 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.withStyle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import mozilla.components.browser.domains.autocomplete.ShippedDomainsProvider
 import org.atmofox.tv.R
-import org.atmofox.tv.channels.pinnedtile.PinnedTile
 import org.atmofox.tv.compose.theme.Ink80
 import org.atmofox.tv.compose.theme.PhotonBlue50
 import org.atmofox.tv.compose.theme.PhotonGrey10
 import org.atmofox.tv.compose.theme.PhotonGrey40
 import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.viewmodel.compose.viewModel
 import org.atmofox.tv.ext.serviceLocator
+import org.atmofox.tv.navigationoverlay.ToolbarViewModel
 import org.atmofox.tv.utils.URLs
 import org.atmofox.tv.utils.UrlUtils
 
@@ -81,30 +95,88 @@ fun BrowserToolbar(
 ) {
     val context = LocalContext.current
     val serviceLocator = context.serviceLocator
-    val sessionRepo = serviceLocator.sessionRepo
-    val pinnedTileRepo = serviceLocator.pinnedTileRepo
+    val factory = remember { serviceLocator.viewModelFactory }
+    val toolbarViewModel = viewModel<ToolbarViewModel>(factory = factory)
 
-    val state by sessionRepo.state.collectAsState()
+    val state by toolbarViewModel.state.collectAsState()
 
-    val pinnedTiles by pinnedTileRepo.pinnedTiles.collectAsState()
-    val isCurrentUrlPinned = pinnedTiles.containsKey(state.currentUrl)
-    val isHomepage = state.currentUrl == URLs.APP_URL_HOME ||
-            state.currentUrl == "data:text/html,<html></html>" ||
-            state.currentUrl.isEmpty()
+    // Consume ViewModel events (toasts) inline since Compose no longer uses Fragment callbacks
+    LaunchedEffect(toolbarViewModel) {
+        toolbarViewModel.events
+            .onEach { consumable ->
+                consumable.consume { action ->
+                    when (action) {
+                        is ToolbarViewModel.Action.ShowTopToast ->
+                            Toast.makeText(context, action.textId, Toast.LENGTH_SHORT).show()
+                        is ToolbarViewModel.Action.ShowBottomToast ->
+                            Toast.makeText(context, action.textId, Toast.LENGTH_SHORT).show()
+                        else -> Unit
+                    }
+                    true
+                }
+            }
+            .launchIn(this)
+    }
 
-    val displayUrl = UrlUtils.toUrlBarDisplay(state.currentUrl)
+    val isHomepage = state.urlBarText == URLs.APP_URL_HOME ||
+            state.urlBarText == "data:text/html,<html></html>" ||
+            state.urlBarText.isEmpty()
+
+    val displayUrl = state.urlBarText
     var isUrlFocused by remember { mutableStateOf(false) }
     var editedText by remember { mutableStateOf("") }
+
+    val domainsProvider = remember { ShippedDomainsProvider() }
+    var autocompleteResult by remember { mutableStateOf<mozilla.components.concept.toolbar.AutocompleteResult?>(null) }
+
+    LaunchedEffect(Unit) {
+        domainsProvider.initialize(context)
+    }
 
     // Initialize editing buffer when focus is gained
     LaunchedEffect(isUrlFocused) {
         if (isUrlFocused) {
             editedText = displayUrl
+            autocompleteResult = null
         }
+    }
+
+    LaunchedEffect(editedText, isUrlFocused) {
+        if (!isUrlFocused || editedText.isBlank() || UrlUtils.isUrl(editedText)) {
+            autocompleteResult = null
+            return@LaunchedEffect
+        }
+        val result = withContext(Dispatchers.IO) {
+            domainsProvider.getAutocompleteSuggestion(editedText)
+        }
+        autocompleteResult = result?.takeIf { it.text.startsWith(editedText, ignoreCase = true) }
     }
 
     // Use direct displayUrl when not focused (no async delay), edited buffer when focused
     val urlText = if (isUrlFocused) editedText else displayUrl
+    val autocompleteSuffix = if (isUrlFocused && autocompleteResult != null) {
+        autocompleteResult!!.text.removePrefix(editedText)
+    } else ""
+
+    val autocompleteTransformation = remember(autocompleteSuffix) {
+        VisualTransformation { original ->
+            if (autocompleteSuffix.isEmpty()) {
+                TransformedText(buildAnnotatedString { append(original.text) }, OffsetMapping.Identity)
+            } else {
+                val annotated = buildAnnotatedString {
+                    append(original.text)
+                    withStyle(SpanStyle(color = PhotonGrey40)) {
+                        append(autocompleteSuffix)
+                    }
+                }
+                val mapping = object : OffsetMapping {
+                    override fun originalToTransformed(offset: Int): Int = offset.coerceIn(0, original.text.length)
+                    override fun transformedToOriginal(offset: Int): Int = offset.coerceIn(0, original.text.length)
+                }
+                TransformedText(annotated, mapping)
+            }
+        }
+    }
 
     var showOverflow by remember { mutableStateOf(false) }
 
@@ -121,19 +193,19 @@ fun BrowserToolbar(
             iconRes = R.drawable.mozac_ic_back,
             contentDescription = "Back",
             enabled = state.backEnabled,
-            onClick = { sessionRepo.attemptBack() }
+            onClick = { toolbarViewModel.backButtonClicked() }
         )
         TooltipButton(
             iconRes = R.drawable.mozac_ic_forward,
             contentDescription = "Forward",
             enabled = state.forwardEnabled,
-            onClick = { sessionRepo.goForward() }
+            onClick = { toolbarViewModel.forwardButtonClicked() }
         )
         TooltipButton(
             iconRes = R.drawable.mozac_ic_refresh,
             contentDescription = "Reload",
-            enabled = true,
-            onClick = { sessionRepo.reload() }
+            enabled = state.refreshEnabled,
+            onClick = { toolbarViewModel.reloadButtonClicked() }
         )
 
         // ── URL field ──
@@ -145,7 +217,11 @@ fun BrowserToolbar(
 
         BasicTextField(
             value = urlText,
-            onValueChange = { editedText = it },
+            onValueChange = {
+                editedText = it
+                autocompleteResult = null
+            },
+            visualTransformation = autocompleteTransformation,
             modifier = Modifier
                 .weight(1f)
                 .height(48.dp)
@@ -158,17 +234,26 @@ fun BrowserToolbar(
                 }
                 .onPreviewKeyEvent { keyEvent ->
                     if (isUrlFocused && keyEvent.type == KeyEventType.KeyDown &&
-                        (keyEvent.key == Key.DirectionLeft || keyEvent.key == Key.DirectionRight)
+                        keyEvent.key == Key.DirectionRight
+                    ) {
+                        autocompleteResult?.let {
+                            editedText = it.text
+                            autocompleteResult = null
+                        }
+                        true
+                    } else if (isUrlFocused && keyEvent.type == KeyEventType.KeyDown &&
+                        keyEvent.key == Key.DirectionLeft
                     ) {
                         true
                     } else if (isUrlFocused && keyEvent.type == KeyEventType.KeyDown &&
                         (keyEvent.key == Key.Enter || keyEvent.key == Key.NumPadEnter)
                     ) {
-                        if (urlText.isNotEmpty() && urlText != URLs.APP_URL_HOME) {
-                            val url = if (UrlUtils.isUrl(urlText)) {
-                                urlText
+                        val submitText = autocompleteResult?.text ?: urlText
+                        if (submitText.isNotEmpty() && submitText != URLs.APP_URL_HOME) {
+                            val url = if (UrlUtils.isUrl(submitText)) {
+                                submitText
                             } else {
-                                UrlUtils.createSearchUrl(context, urlText)
+                                UrlUtils.createSearchUrl(context, submitText)
                             }
                             serviceLocator.sessionUseCases.loadUrl.invoke(url)
                         }
@@ -244,36 +329,34 @@ fun BrowserToolbar(
                     ) {
                         // Pin
                         TooltipButton(
-                            iconRes = if (isCurrentUrlPinned) R.drawable.mozac_ic_pin_filled else R.drawable.mozac_ic_pin,
-                            contentDescription = if (isCurrentUrlPinned) "Unpin site" else "Pin site",
-                            enabled = !isHomepage,
-                            checked = isCurrentUrlPinned,
+                            iconRes = if (state.pinChecked) R.drawable.mozac_ic_pin_filled else R.drawable.mozac_ic_pin,
+                            contentDescription = if (state.pinChecked) "Unpin site" else "Pin site",
+                            enabled = state.pinEnabled,
+                            checked = state.pinChecked,
                             onClick = {
-                                if (isCurrentUrlPinned) pinnedTileRepo.removePinnedTile(state.currentUrl)
-                                else pinnedTileRepo.addPinnedTile(state.currentUrl, null)
+                                toolbarViewModel.pinButtonClicked()
                                 showOverflow = false
                             }
                         )
                         // Turbo
                         TooltipButton(
-                            iconRes = if (state.turboModeActive) R.drawable.mozac_ic_rocket_filled else R.drawable.mozac_ic_rocket,
-                            contentDescription = if (state.turboModeActive) "Turbo mode on" else "Turbo mode off",
+                            iconRes = if (state.turboChecked) R.drawable.mozac_ic_rocket_filled else R.drawable.mozac_ic_rocket,
+                            contentDescription = if (state.turboChecked) "Turbo mode on" else "Turbo mode off",
                             enabled = true,
-                            checked = state.turboModeActive,
+                            checked = state.turboChecked,
                             onClick = {
-                                sessionRepo.setTurboModeEnabled(!state.turboModeActive, skipEngineSettingsUpdate = isHomepage)
-                                if (!isHomepage) sessionRepo.reload()
+                                toolbarViewModel.turboButtonClicked()
                                 showOverflow = false
                             }
                         )
                         // Desktop
                         TooltipButton(
                             iconRes = R.drawable.mozac_ic_device_desktop,
-                            contentDescription = if (state.desktopModeActive) "Desktop mode on" else "Desktop mode off",
-                            enabled = !isHomepage,
-                            checked = state.desktopModeActive,
+                            contentDescription = if (state.desktopModeChecked) "Desktop mode on" else "Desktop mode off",
+                            enabled = state.desktopModeEnabled,
+                            checked = state.desktopModeChecked,
                             onClick = {
-                                sessionRepo.setDesktopMode(!state.desktopModeActive)
+                                toolbarViewModel.desktopModeButtonClicked()
                                 showOverflow = false
                             }
                         )

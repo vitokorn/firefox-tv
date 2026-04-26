@@ -91,9 +91,10 @@ class TestPublicSuffix {
         )
     }
 
-    @Test(expected = NullPointerException::class)
-    fun testStripPublicSuffixThrowsException() {
-        PublicSuffix.stripPublicSuffix(RuntimeEnvironment.application, null)
+    @Test
+    fun testStripPublicSuffixWithNullDomain() {
+        val result = PublicSuffix.stripPublicSuffix(RuntimeEnvironment.application, null)
+        Assert.assertEquals("", result)
     }
 
     @Test

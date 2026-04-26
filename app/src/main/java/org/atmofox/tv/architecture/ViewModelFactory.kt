@@ -38,7 +38,8 @@ class ViewModelFactory(
         return when (modelClass) {
             ToolbarViewModel::class.java -> ToolbarViewModel(
                 sessionRepo = serviceLocator.sessionRepo,
-                pinnedTileRepo = serviceLocator.pinnedTileRepo
+                pinnedTileRepo = serviceLocator.pinnedTileRepo,
+                engineViewCache = serviceLocator.engineViewCache
             ) as T
 
             SettingsViewModel::class.java -> SettingsViewModel(
@@ -59,7 +60,8 @@ class ViewModelFactory(
                 serviceLocator.channelRepo,
                 ToolbarViewModel(
                         sessionRepo = serviceLocator.sessionRepo,
-                        pinnedTileRepo = serviceLocator.pinnedTileRepo
+                        pinnedTileRepo = serviceLocator.pinnedTileRepo,
+                        engineViewCache = serviceLocator.engineViewCache
                 ),
                 serviceLocator.fxaRepo,
                 serviceLocator.fxaLoginUseCase

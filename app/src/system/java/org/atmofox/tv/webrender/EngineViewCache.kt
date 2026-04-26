@@ -8,11 +8,13 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleObserver
 import androidx.lifecycle.OnLifecycleEvent
 import android.content.Context
+import android.graphics.Bitmap
 import android.os.Bundle
 import android.util.AttributeSet
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebView
+import kotlinx.coroutines.suspendCancellableCoroutine
 import mozilla.components.browser.engine.system.SystemEngineView
 import org.atmofox.tv.ext.canGoBackTwice
 import org.atmofox.tv.ext.restoreState
@@ -110,5 +112,19 @@ class EngineViewCache(private val sessionRepo: SessionRepo) : LifecycleObserver 
 
     fun doNotPersist() {
         shouldPersist = false
+    }
+
+    /**
+     * Asynchronously captures the current thumbnail from the cached [SystemEngineView].
+     */
+    suspend fun captureThumbnail(): Bitmap? = suspendCancellableCoroutine { continuation ->
+        val view = cachedView
+        if (view == null) {
+            continuation.resume(null) {}
+            return@suspendCancellableCoroutine
+        }
+        view.captureThumbnail { bitmap ->
+            continuation.resume(bitmap) {}
+        }
     }
 }

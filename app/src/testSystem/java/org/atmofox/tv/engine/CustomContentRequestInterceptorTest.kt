@@ -19,6 +19,7 @@ import org.junit.runner.RunWith
 import org.mockito.Mockito.mock
 import org.atmofox.tv.webrender.CustomContentRequestInterceptor
 import org.atmofox.tv.helpers.FirefoxRobolectricTestRunner
+import org.atmofox.tv.utils.URLs
 
 @RunWith(FirefoxRobolectricTestRunner::class)
 class CustomContentRequestInterceptorTest {
@@ -28,8 +29,8 @@ class CustomContentRequestInterceptorTest {
     }
 
     @Test
-    fun `Interceptor should return content for firefox-home`() {
-        val result = testInterceptor("firefox:home")
+    fun `Interceptor should return content for about-home`() {
+        val result = testInterceptor(URLs.APP_URL_HOME)
 
         assertNotNull(result)
         assertEquals("<html></html>", result!!.data)
@@ -38,8 +39,8 @@ class CustomContentRequestInterceptorTest {
     }
 
     @Test
-    fun `Interceptor should return content for firefox-about`() {
-        val result = testInterceptor("firefox:about")
+    fun `Interceptor should return content for about-about`() {
+        val result = testInterceptor(URLs.URL_ABOUT)
 
         assertNotNull(result)
         assertTrue(result!!.data.isNotEmpty())
@@ -54,17 +55,25 @@ class CustomContentRequestInterceptorTest {
     }
 
     @Test
-    fun `Interceptor should return different content for firefox-home and firefox-about`() {
-        val firefoxAbout = testInterceptor("firefox:about")
-        val firefoxHome = testInterceptor("firefox:home")
+    fun `Interceptor should return different content for about-home and about-about`() {
+        val aboutAbout = testInterceptor(URLs.URL_ABOUT)
+        val aboutHome = testInterceptor(URLs.APP_URL_HOME)
 
-        assertEquals(firefoxAbout!!.mimeType, firefoxHome!!.mimeType)
-        assertEquals(firefoxAbout.encoding, firefoxHome.encoding)
-        assertNotEquals(firefoxAbout.data, firefoxHome.data)
+        assertEquals(aboutAbout!!.mimeType, aboutHome!!.mimeType)
+        assertEquals(aboutAbout.encoding, aboutHome.encoding)
+        assertNotEquals(aboutAbout.data, aboutHome.data)
     }
 
     private fun testInterceptor(url: String): RequestInterceptor.InterceptionResponse.Content? {
         val interceptor = CustomContentRequestInterceptor(ApplicationProvider.getApplicationContext())
-        return interceptor.onLoadRequest(mock(EngineSession::class.java), url)
+        return interceptor.onLoadRequest(
+            mock(EngineSession::class.java), url,
+            lastUri = null,
+            hasUserGesture = false,
+            isSameDomain = false,
+            isRedirect = false,
+            isDirectNavigation = true,
+            isSubframeRequest = false
+        ) as? RequestInterceptor.InterceptionResponse.Content
     }
 }
