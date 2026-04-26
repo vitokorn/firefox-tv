@@ -31,7 +31,7 @@ data class ValidatedIntentData(val url: String, val source: String = "unknown")
  * in their code.
  */
 object IntentValidator {
-    @VisibleForTesting const val DIAL_PARAMS_KEY = "com.amazon.extra.DIAL_PARAM"
+    @VisibleForTesting const val DIAL_PARAMS_KEY = "extra.DIAL_PARAM"
 
     /**
      * Validate that [intent] contains all expected parameters.

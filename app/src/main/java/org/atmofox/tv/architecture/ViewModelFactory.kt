@@ -43,7 +43,8 @@ class ViewModelFactory(
 
             SettingsViewModel::class.java -> SettingsViewModel(
                 serviceLocator.settingsRepo,
-                serviceLocator.sessionRepo
+                serviceLocator.sessionRepo,
+                serviceLocator.store
             ) as T
 
             NavigationOverlayViewModel::class.java -> NavigationOverlayViewModel(

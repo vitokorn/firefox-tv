@@ -229,7 +229,6 @@ open class TelemetryIntegration protected constructor(
     }
 
     private fun searchEnterEvent(inputLocation: UrlTextInputLocation) {
-        // SearchEngineManager removed in 128.x - search engine identifier unavailable.
         recordTelemetryEvent(
             "search_query",
             source = inputLocation.extra,

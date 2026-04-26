@@ -6,6 +6,9 @@ package org.atmofox.tv.webrender
 
 import android.content.Context
 import mozilla.components.browser.engine.system.SystemEngine
+import android.graphics.Bitmap
+import mozilla.components.browser.state.action.SearchAction
+import mozilla.components.browser.state.search.SearchEngine
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.browser.state.engine.EngineMiddleware
 import mozilla.components.concept.engine.DefaultSettings
@@ -53,10 +56,60 @@ class WebRenderComponents(applicationContext: Context, systemUserAgent: String) 
     }
 
     val store by lazy {
-        BrowserStore(
+        val browserStore = BrowserStore(
             middleware = EngineMiddleware.create(engine)
         )
+        initializeSearchEngines(browserStore)
+        browserStore
     }
 
     val sessionUseCases by lazy { SessionUseCases(store) }
+
+    private fun initializeSearchEngines(browserStore: BrowserStore) {
+        val placeholderIcon = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+
+        val google = SearchEngine(
+            id = "google",
+            name = "Google",
+            icon = placeholderIcon,
+            inputEncoding = "UTF-8",
+            type = SearchEngine.Type.APPLICATION,
+            resultUrls = listOf("https://www.google.com/search?q={searchTerms}"),
+            suggestUrl = "https://www.google.com/complete/search?client=firefox&q={searchTerms}",
+            isGeneral = true
+        )
+        val bing = SearchEngine(
+            id = "bing",
+            name = "Bing",
+            icon = placeholderIcon,
+            inputEncoding = "UTF-8",
+            type = SearchEngine.Type.APPLICATION,
+            resultUrls = listOf("https://www.bing.com/search?q={searchTerms}"),
+            suggestUrl = null,
+            isGeneral = true
+        )
+        val duckduckgo = SearchEngine(
+            id = "ddg",
+            name = "DuckDuckGo",
+            icon = placeholderIcon,
+            inputEncoding = "UTF-8",
+            type = SearchEngine.Type.APPLICATION,
+            resultUrls = listOf("https://duckduckgo.com/?q={searchTerms}"),
+            suggestUrl = null,
+            isGeneral = true
+        )
+
+        browserStore.dispatch(SearchAction.SetSearchEnginesAction(
+            regionSearchEngines = listOf(google, bing, duckduckgo),
+            customSearchEngines = emptyList(),
+            hiddenSearchEngines = emptyList(),
+            disabledSearchEngineIds = emptyList(),
+            additionalSearchEngines = emptyList(),
+            additionalAvailableSearchEngines = emptyList(),
+            userSelectedSearchEngineId = null,
+            userSelectedSearchEngineName = null,
+            regionDefaultSearchEngineId = google.id,
+            regionSearchEnginesOrder = listOf(google.id, bing.id, duckduckgo.id)
+        ))
+    }
 }

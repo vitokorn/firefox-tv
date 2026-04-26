@@ -93,7 +93,6 @@ private val addInputScriptWhitelist = setOf(
     "https://www.google.",
     "http://www.bing.",
     "https://www.bing.",
-    "https://www.amazon.",
     "https://www.reddit."
 )
 

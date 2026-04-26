@@ -22,8 +22,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -49,6 +51,7 @@ import org.atmofox.tv.compose.theme.PhotonGrey10
 import org.atmofox.tv.compose.theme.PhotonGrey70
 import org.atmofox.tv.compose.theme.TvGray2
 import org.atmofox.tv.ext.serviceLocator
+import mozilla.components.browser.state.state.searchEngines
 import org.atmofox.tv.telemetry.TelemetryIntegration
 import org.atmofox.tv.utils.URLs
 
@@ -109,6 +112,68 @@ fun SettingsScreen(
                             )
                         }
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    val selectedSearchId by serviceLocator.settingsRepo.selectedSearchEngineId.collectAsState()
+                    val engines = serviceLocator.store.state.search.searchEngines
+                    val currentEngine = engines.find { it.id == selectedSearchId }
+                    var showSearchEngineDialog by remember { mutableStateOf(false) }
+
+                    SettingItem(
+                        title = "Default search engine",
+                        subtitle = currentEngine?.name ?: "Google",
+                        onClick = { showSearchEngineDialog = true }
+                    )
+
+                    if (showSearchEngineDialog) {
+                        val dialogFocus = remember { FocusRequester() }
+                        LaunchedEffect(Unit) { dialogFocus.requestFocus() }
+                        AlertDialog(
+                            onDismissRequest = { showSearchEngineDialog = false },
+                            title = { Text("Select search engine") },
+                            text = {
+                                Column {
+                                    engines.forEach { engine ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .selectable(
+                                                    selected = engine.id == selectedSearchId,
+                                                    onClick = {
+                                                        serviceLocator.settingsRepo.setSelectedSearchEngineId(engine.id)
+                                                        serviceLocator.store.dispatch(
+                                                            mozilla.components.browser.state.action.SearchAction.SelectSearchEngineAction(
+                                                                engine.id,
+                                                                engine.name
+                                                            )
+                                                        )
+                                                        showSearchEngineDialog = false
+                                                    }
+                                                )
+                                                .padding(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            RadioButton(
+                                                selected = engine.id == selectedSearchId,
+                                                onClick = null
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(engine.name, fontSize = 18.sp)
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {},
+                            dismissButton = {
+                                DialogButton(
+                                    title = context.getString(R.string.action_cancel),
+                                    modifier = Modifier.focusRequester(dialogFocus),
+                                    onClick = { showSearchEngineDialog = false }
+                                )
+                            }
+                        )
+                    }
+
                     Spacer(modifier = Modifier.height(8.dp))
 
                     var showClearDialog by remember { mutableStateOf(false) }

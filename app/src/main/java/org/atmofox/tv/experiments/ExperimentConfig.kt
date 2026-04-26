@@ -18,7 +18,7 @@ enum class ExperimentConfig(val value: String) {
     TURBO_MODE_REBRAND("TurboModeRebrand-2689"),
 
     /**
-     * This is not an experiment. If Amazon deploys a fix for this bug, our workaround
+     * This is not an experiment. If the platform deploys a fix for this bug, our workaround
      * may break it: we use this flag as an option to disable this workaround remotely.
      */
     MP4_VIDEO_WORKAROUND("Mp4VideoWorkaround-2540"),

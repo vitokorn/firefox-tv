@@ -23,7 +23,6 @@ import org.atmofox.tv.ext.webRenderComponents
 import org.atmofox.tv.framework.FrameworkRepo
 import org.atmofox.tv.fxa.FxaLoginUseCase
 import org.atmofox.tv.fxa.FxaRepo
-import org.atmofox.tv.search.SearchEngineManagerFactory
 import org.atmofox.tv.session.SessionRepo
 import org.atmofox.tv.settings.SettingsRepo
 import org.atmofox.tv.webrender.EngineViewCache
@@ -72,8 +71,6 @@ open class ServiceLocator(val app: Application) {
     val engineViewCache by lazy { EngineViewCache(sessionRepo) }
     val store get() = app.webRenderComponents.store
     val sessionUseCases get() = app.webRenderComponents.sessionUseCases
-    // SearchEngineManager removed in 128.x - TODO: use feature-search APIs
-    val searchEngineManager: Any? = null
     val cursorModel by lazy { CursorModel(screenController.currentActiveScreen, frameworkRepo, sessionRepo) }
     val screenshotStoreWrapper by lazy { PinnedTileImageUtilWrapper(app) }
     val formattedDomainWrapper by lazy { FormattedDomainWrapper(app) }

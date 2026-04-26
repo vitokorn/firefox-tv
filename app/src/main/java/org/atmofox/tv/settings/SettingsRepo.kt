@@ -17,6 +17,8 @@ import org.atmofox.tv.R
 
 private val PREF_KEY_TELEMETRY = R.string.pref_key_telemetry
 const val IS_TELEMETRY_ENABLED_DEFAULT = true
+private const val PREF_KEY_SEARCH_ENGINE = "pref_search_engine_id"
+private const val DEFAULT_SEARCH_ENGINE_ID = "google"
 
 class SettingsRepo(applicationContext: Application) {
     private val _sharedPreferences: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(applicationContext)
@@ -24,6 +26,9 @@ class SettingsRepo(applicationContext: Application) {
 
     private val _dataCollectionEnabled = MutableStateFlow(true)
     val dataCollectionEnabled: StateFlow<Boolean> = _dataCollectionEnabled
+
+    private val _selectedSearchEngineId = MutableStateFlow(DEFAULT_SEARCH_ENGINE_ID)
+    val selectedSearchEngineId: StateFlow<String> = _selectedSearchEngineId
 
     init {
         loadSettingsFromPreferences()
@@ -34,6 +39,8 @@ class SettingsRepo(applicationContext: Application) {
         StrictMode.allowThreadDiskReads().resetAfter {
             _dataCollectionEnabled.value = _sharedPreferences
                     .getBoolean(resources.getString(PREF_KEY_TELEMETRY), IS_TELEMETRY_ENABLED_DEFAULT)
+            _selectedSearchEngineId.value = _sharedPreferences
+                    .getString(PREF_KEY_SEARCH_ENGINE, DEFAULT_SEARCH_ENGINE_ID) ?: DEFAULT_SEARCH_ENGINE_ID
         }
     }
 
@@ -42,5 +49,12 @@ class SettingsRepo(applicationContext: Application) {
                 .putBoolean(resources.getString(PREF_KEY_TELEMETRY), toEnable)
                 .apply()
         _dataCollectionEnabled.value = toEnable
+    }
+
+    fun setSelectedSearchEngineId(searchEngineId: String) {
+        _sharedPreferences.edit()
+                .putString(PREF_KEY_SEARCH_ENGINE, searchEngineId)
+                .apply()
+        _selectedSearchEngineId.value = searchEngineId
     }
 }

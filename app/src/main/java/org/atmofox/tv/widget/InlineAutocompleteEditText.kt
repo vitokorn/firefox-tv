@@ -567,7 +567,7 @@ class InlineAutocompleteEditText(context: Context, attrs: AttributeSet?) :
             if (keyCode == KeyEvent.KEYCODE_BACK) {
                 removeAutocomplete(text!!)
                 onBackPressedListener?.onBackPressed()
-                // Issue #495 - Handle hiding keyboard so Amazon keyboard doesn't mess up the focus.
+                // Issue #495 - Handle hiding keyboard so soft keyboard doesn't mess up the focus.
                 return ViewUtils.hideKeyboard(this)
             }
 

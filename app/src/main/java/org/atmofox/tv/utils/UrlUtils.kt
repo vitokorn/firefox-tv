@@ -9,7 +9,9 @@ import android.content.Context
 import android.net.Uri
 import android.webkit.URLUtil
 
-import org.atmofox.tv.ext.serviceLocator
+import mozilla.components.browser.state.state.selectedOrDefaultSearchEngine
+import mozilla.components.feature.search.ext.buildSearchUrl
+import org.atmofox.tv.FirefoxApplication
 
 import java.net.URI
 import java.net.URISyntaxException
@@ -70,8 +72,9 @@ object UrlUtils {
 
     @JvmStatic
     fun createSearchUrl(context: Context, searchTerm: String): String {
-        // SearchEngineManager removed in 128.x - hardcoded search URL for now
-        return "https://www.google.com/search?q=" + java.net.URLEncoder.encode(searchTerm, "UTF-8")
+        val store = (context.applicationContext as? FirefoxApplication)?.components?.store
+        val searchUrl = store?.state?.search?.selectedOrDefaultSearchEngine?.buildSearchUrl(searchTerm)
+        return searchUrl ?: ("https://www.google.com/search?q=" + java.net.URLEncoder.encode(searchTerm, "UTF-8"))
     }
 
     @JvmStatic

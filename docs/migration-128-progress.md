@@ -38,9 +38,13 @@
 - [ ] `TurboMode.kt` - May reference old `TrackingProtectionPolicy.NONE`
 
 #### 3. Search Engine API (MEDIUM)
-- [ ] `SearchEngineManagerFactory.kt` - `SearchEngineManager` removed
-- [ ] `SearchEngineProviderWrapper.kt` - Entire search provider API changed
-- [ ] ServiceLocator search stub needs real implementation
+- [x] `SearchEngineManagerFactory.kt` - `SearchEngineManager` removed, replaced by `feature-search`
+- [x] `SearchEngineProviderWrapper.kt` - Replaced by `feature-search` `SearchEngine`/`BrowserStore`
+- [x] `UrlUtils.createSearchUrl` - Uses `BrowserStore` default search engine via `feature-search`
+- [x] `WebRenderComponents` - Initializes Google/Bing/DuckDuckGo search engines in `BrowserStore`
+- [x] `SettingsScreen` - Added default search engine selection dialog in COMMON settings
+- [x] Removed Amazon search codes and `assets/searchplugins/` XML files
+- [x] Removed Amazon Device Messaging (ADM) dependency
 
 #### 4. FxA API (MEDIUM)
 - [x] `FxaRepo.kt` - `beginAuthenticationAsync()` → `beginAuthentication()` (suspend)

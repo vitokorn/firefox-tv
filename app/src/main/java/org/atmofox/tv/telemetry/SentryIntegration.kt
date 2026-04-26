@@ -27,9 +27,9 @@ import org.atmofox.tv.settings.SettingsRepo
  * The gradle output is the only way to verify if adding the key was successful (but it
  * won't indicate if the key is valid: #747). You will see a message in the gradle output
  * indicating the key was added:
- * "Sentry DSN (amazonWebviewRelease): Added from /Users/mcomella/dev/moz/firefox-tv/.sentry_dsn_release"
+ * "Sentry DSN (release): Added from /Users/mcomella/dev/moz/firefox-tv/.sentry_dsn_release"
  * As opposed to:
- * "Sentry DSN (amazonWebviewRelease): X_X"
+ * "Sentry DSN (release): X_X"
  */
 object SentryIntegration {
 

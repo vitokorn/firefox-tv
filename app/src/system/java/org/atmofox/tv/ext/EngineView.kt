@@ -39,8 +39,8 @@ private val uiHandler by lazy { Handler(Looper.getMainLooper()) }
 fun EngineView.setupForApp() {
     // Also increase text size to fill the viewport (this mirrors the behaviour of Firefox,
     // Chrome does this in the current Chrome Dev, but not Chrome release).
-    // TODO #33: TEXT_AUTOSIZING does not exist in AmazonWebSettings
-    // webView.settings.setLayoutAlgorithm(AmazonWebSettings.LayoutAlgorithm.TEXT_AUTOSIZING);
+    // TODO #33: TEXT_AUTOSIZING does not exist in System WebSettings
+    // webView.settings.setLayoutAlgorithm(WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING);
 
     // WebView can be null temporarily after clearData(); however, activity.recreate() would
     // instantiate a new WebView instance

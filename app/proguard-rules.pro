@@ -82,8 +82,3 @@
 # Currently consumed (in depenendecies) by mozilla.components.service.freboard.scheduler
 -dontwarn sun.misc.Unsafe
 
-####################################################################################################
-# Amazon WebView (Fire TV)
-####################################################################################################
--keep public class com.amazon.android.webkit.android.AndroidWebKitFactory { public *; }
--keep public class com.amazon.android.webkit.embedded.EmbeddedWebKitFactory { public *; }

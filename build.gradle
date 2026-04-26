@@ -13,7 +13,6 @@ buildscript {
     ext.moz_components_version = '128.0'
     ext.glean_version = '60.4.0'
     ext.androidx_work_version = '2.7.1'
-    ext.adm_version = '1.0.1' // Also update proguard rule if this gets updated
     ext.oss_licenses_version = '17.0.0'
 
     ext.robolectric_version = '4.0.2' // required for SDK 28.

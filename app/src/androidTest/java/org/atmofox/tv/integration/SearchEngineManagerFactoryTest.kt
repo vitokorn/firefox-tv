@@ -9,13 +9,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.atmofox.tv.FirefoxApplication
-import org.atmofox.tv.search.SearchEngineManagerFactory
 import org.atmofox.tv.utils.UrlUtils
 
 /**
- * Stubbed test: browser-search was removed in mozilla-components 128.x.
- * SearchEngineManagerFactory.create returns null. UrlUtils.createSearchUrl
- * still appends search codes directly.
+ * feature-search replaced browser-search in mozilla-components 128.x.
+ * Search engines are now initialized in BrowserStore via WebRenderComponents.
  */
 class SearchEngineManagerFactoryTest {
 
@@ -27,16 +25,8 @@ class SearchEngineManagerFactoryTest {
     }
 
     @Test
-    fun searchEngineFactoryIsStubbed() {
-        val searchEngineManager = SearchEngineManagerFactory.create(app)
-        assertTrue(searchEngineManager == null)
-    }
-
-    @Test
-    fun searchEngineUrlShouldIncludeFftvSearchCodes() {
+    fun searchEngineUrlShouldUseGoogle() {
         val searchUrl = UrlUtils.createSearchUrl(app, "cats")
-        assertTrue(searchUrl.contains(SearchEngineManagerFactory.AMAZON_SEARCH_CODE) ||
-                searchUrl.contains(SearchEngineManagerFactory.AMAZON_SEARCH_CODE_US_ONLY)
-        )
+        assertTrue(searchUrl.contains("google.com/search?q=cats"))
     }
 }

@@ -10,7 +10,7 @@ import mozilla.components.browser.engine.system.SystemEngineSession
 import mozilla.components.concept.engine.EngineSession
 
 /**
- * [AmazonWebView] requires ActivityContext in order to show 4K resolution rendering option (#277)
+ * System WebView requires ActivityContext in order to show 4K resolution rendering option (#277)
  *
  * By default, a-c [SystemEngineSession.webView] uses ApplicationContext. This allows us to
  * override the webView instance

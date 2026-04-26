@@ -4,15 +4,5 @@
 
 package org.atmofox.tv.search
 
-import android.app.Application
-
 // browser-search removed in mozilla-components 128.x
-// This is a stub. TODO: Replace with feature-search APIs if needed.
-
-object SearchEngineManagerFactory {
-
-    val AMAZON_SEARCH_CODE = "google-b-amzftv"
-    val AMAZON_SEARCH_CODE_US_ONLY = "google-b-1-amzftv"
-
-    fun create(app: Application): Any? = null
-}
+// Replaced by feature-search APIs via BrowserStore and SearchEngine.

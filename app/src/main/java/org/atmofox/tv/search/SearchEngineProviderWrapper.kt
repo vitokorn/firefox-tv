@@ -5,5 +5,4 @@
 package org.atmofox.tv.search
 
 // browser-search removed in mozilla-components 128.x
-// This file kept for backward compatibility but all implementation stripped.
-// TODO: Replace with feature-search APIs if needed.
+// Replaced by feature-search APIs via BrowserStore and SearchEngine.
