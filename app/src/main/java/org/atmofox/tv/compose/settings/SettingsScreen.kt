@@ -6,8 +6,12 @@ package org.atmofox.tv.compose.settings
 
 import android.text.Html
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,15 +19,26 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -47,6 +62,7 @@ import org.atmofox.tv.utils.URLs
 fun SettingsScreen(
     settingsType: SettingsType,
     onBack: () -> Unit,
+    onNavigateToBrowser: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -78,8 +94,11 @@ fun SettingsScreen(
         Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
             when (settingsType) {
                 SettingsType.COMMON -> {
-                    val isEnabled = serviceLocator.settingsRepo.dataCollectionEnabled.value ?: true
+                    val commonFocus = remember { FocusRequester() }
+                    LaunchedEffect(Unit) { commonFocus.requestFocus() }
+                    val isEnabled by serviceLocator.settingsRepo.dataCollectionEnabled.collectAsState()
                     ToggleItem(
+                        modifier = Modifier.focusRequester(commonFocus),
                         title = "Send usage data",
                         subtitle = context.getString(R.string.settings_telemetry_description, context.getString(R.string.firefox_tv_brand_name)),
                         checked = isEnabled,
@@ -91,20 +110,52 @@ fun SettingsScreen(
                         }
                     )
                     Spacer(modifier = Modifier.height(8.dp))
+
+                    var showClearDialog by remember { mutableStateOf(false) }
                     SettingItem(
                         title = "Clear all cookies and site data",
                         subtitle = context.getString(R.string.settings_cookies_dialog_content2),
-                        onClick = {
-                            serviceLocator.sessionRepo.clearBrowsingData(
-                                serviceLocator.engineViewCache
-                            )
-                            onBack()
-                        }
+                        onClick = { showClearDialog = true }
                     )
+
+                    if (showClearDialog) {
+                        val confirmFocusRequester = remember { FocusRequester() }
+                        LaunchedEffect(Unit) { confirmFocusRequester.requestFocus() }
+                        AlertDialog(
+                            onDismissRequest = { showClearDialog = false },
+                            title = { Text(context.getString(R.string.settings_cookies_dialog_title)) },
+                            text = { Text(context.getString(R.string.settings_cookies_dialog_content2)) },
+                            confirmButton = {
+                                Row(modifier = Modifier.fillMaxWidth()) {
+                                    DialogButton(
+                                        title = context.getString(R.string.action_cancel),
+                                        modifier = Modifier.weight(1f),
+                                        onClick = { showClearDialog = false }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    DialogButton(
+                                        title = context.getString(R.string.settings_cookies_confirm),
+                                        modifier = Modifier.focusRequester(confirmFocusRequester).weight(1f),
+                                        onClick = {
+                                            serviceLocator.sessionRepo.clearBrowsingData(
+                                                serviceLocator.engineViewCache
+                                            )
+                                            showClearDialog = false
+                                            onBack()
+                                        }
+                                    )
+                                }
+                            },
+                            dismissButton = {}
+                        )
+                    }
                 }
                 SettingsType.DATA_COLLECTION -> {
-                    val isEnabled = serviceLocator.settingsRepo.dataCollectionEnabled.value ?: true
+                    val dataFocus = remember { FocusRequester() }
+                    LaunchedEffect(Unit) { dataFocus.requestFocus() }
+                    val isEnabled by serviceLocator.settingsRepo.dataCollectionEnabled.collectAsState()
                     SettingItem(
+                        modifier = Modifier.focusRequester(dataFocus),
                         title = "Send usage data",
                         subtitle = if (isEnabled) "Currently enabled" else "Currently disabled",
                         onClick = {
@@ -116,23 +167,57 @@ fun SettingsScreen(
                     )
                 }
                 SettingsType.CLEAR_COOKIES -> {
+                    val clearFocus = remember { FocusRequester() }
+                    LaunchedEffect(Unit) { clearFocus.requestFocus() }
+                    var showClearDialog by remember { mutableStateOf(false) }
                     SettingItem(
+                        modifier = Modifier.focusRequester(clearFocus),
                         title = "Clear all cookies",
                         subtitle = "Removes site data and cookies",
-                        onClick = {
-                            serviceLocator.sessionRepo.clearBrowsingData(
-                                serviceLocator.engineViewCache
-                            )
-                            onBack()
-                        }
+                        onClick = { showClearDialog = true }
                     )
+
+                    if (showClearDialog) {
+                        val confirmFocusRequester = remember { FocusRequester() }
+                        LaunchedEffect(Unit) { confirmFocusRequester.requestFocus() }
+                        AlertDialog(
+                            onDismissRequest = { showClearDialog = false },
+                            title = { Text(context.getString(R.string.settings_cookies_dialog_title)) },
+                            text = { Text(context.getString(R.string.settings_cookies_dialog_content2)) },
+                            confirmButton = {
+                                Row(modifier = Modifier.fillMaxWidth()) {
+                                    DialogButton(
+                                        title = context.getString(R.string.action_cancel),
+                                        modifier = Modifier.weight(1f),
+                                        onClick = { showClearDialog = false }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    DialogButton(
+                                        title = context.getString(R.string.settings_cookies_confirm),
+                                        modifier = Modifier.focusRequester(confirmFocusRequester).weight(1f),
+                                        onClick = {
+                                            serviceLocator.sessionRepo.clearBrowsingData(
+                                                serviceLocator.engineViewCache
+                                            )
+                                            showClearDialog = false
+                                            onBack()
+                                        }
+                                    )
+                                }
+                            },
+                            dismissButton = {}
+                        )
+                    }
                 }
                 SettingsType.ABOUT -> {
+                    val aboutFocus = remember { FocusRequester() }
+                    LaunchedEffect(Unit) { aboutFocus.requestFocus() }
                     val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
                     val versionName = packageInfo?.versionName ?: ""
 
                     // Version row (legacy style)
                     SettingItem(
+                        modifier = Modifier.focusRequester(aboutFocus),
                         title = context.getString(R.string.firefox_tv_brand_name),
                         subtitle = "Version $versionName",
                         onClick = {}
@@ -145,7 +230,7 @@ fun SettingsScreen(
                         subtitle = "View license information",
                         onClick = {
                             serviceLocator.sessionUseCases.loadUrl.invoke(URLs.URL_LICENSES)
-                            onBack()
+                            onNavigateToBrowser()
                         }
                     )
                     Spacer(modifier = Modifier.height(24.dp))
@@ -171,12 +256,15 @@ fun SettingsScreen(
                     Text(text = rights5, fontSize = 14.sp, color = TvGray2)
                 }
                 SettingsType.PRIVACY_POLICY -> {
+                    val privacyFocus = remember { FocusRequester() }
+                    LaunchedEffect(Unit) { privacyFocus.requestFocus() }
                     SettingItem(
+                        modifier = Modifier.focusRequester(privacyFocus),
                         title = "Privacy Notice",
                         subtitle = "Opens at mozilla.org/privacy",
                         onClick = {
                             serviceLocator.sessionUseCases.loadUrl.invoke(URLs.PRIVACY_NOTICE_URL)
-                            onBack()
+                            onNavigateToBrowser()
                         }
                     )
                 }
@@ -197,14 +285,34 @@ fun SettingsScreen(
 private fun SettingItem(
     title: String,
     subtitle: String,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val alpha = if (isFocused) 1f else 0.85f
+
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .focusable()
-            .clickable(onClick = onClick)
+            .alpha(alpha)
+            .focusable(interactionSource = interactionSource)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
             .background(PhotonGrey70)
+            .then(
+                if (isFocused) {
+                    Modifier.border(
+                        BorderStroke(2.dp, SolidColor(PhotonBlue50)),
+                        MaterialTheme.shapes.small
+                    )
+                } else {
+                    Modifier
+                }
+            )
             .padding(16.dp)
     ) {
         Text(
@@ -225,14 +333,34 @@ private fun ToggleItem(
     title: String,
     subtitle: String,
     checked: Boolean,
+    modifier: Modifier = Modifier,
     onCheckedChange: (Boolean) -> Unit
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val alpha = if (isFocused) 1f else 0.85f
+
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .focusable()
-            .clickable { onCheckedChange(!checked) }
+            .alpha(alpha)
+            .focusable(interactionSource = interactionSource)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = { onCheckedChange(!checked) }
+            )
             .background(PhotonGrey70)
+            .then(
+                if (isFocused) {
+                    Modifier.border(
+                        BorderStroke(2.dp, SolidColor(PhotonBlue50)),
+                        MaterialTheme.shapes.small
+                    )
+                } else {
+                    Modifier
+                }
+            )
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -248,9 +376,50 @@ private fun ToggleItem(
                 color = TvGray2
             )
         }
-        Switch(
+        Checkbox(
             checked = checked,
             onCheckedChange = onCheckedChange
+        )
+    }
+}
+
+@Composable
+private fun DialogButton(
+    title: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val alpha = if (isFocused) 1f else 0.85f
+
+    Column(
+        modifier = modifier
+            .alpha(alpha)
+            .focusable(interactionSource = interactionSource)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .background(PhotonGrey70)
+            .then(
+                if (isFocused) {
+                    Modifier.border(
+                        BorderStroke(2.dp, SolidColor(PhotonBlue50)),
+                        MaterialTheme.shapes.small
+                    )
+                } else {
+                    Modifier
+                }
+            )
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = title,
+            fontSize = 18.sp,
+            color = PhotonGrey10
         )
     }
 }

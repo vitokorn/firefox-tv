@@ -7,11 +7,11 @@
 package org.atmofox.tv.settings
 
 import android.app.Application
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import android.content.SharedPreferences
 import android.os.StrictMode
 import android.preference.PreferenceManager
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import mozilla.components.support.ktx.android.os.resetAfter
 import org.atmofox.tv.R
 
@@ -22,8 +22,8 @@ class SettingsRepo(applicationContext: Application) {
     private val _sharedPreferences: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(applicationContext)
     private val resources = applicationContext.resources
 
-    private val _dataCollectionEnabled = MutableLiveData<Boolean>()
-    val dataCollectionEnabled: LiveData<Boolean> = _dataCollectionEnabled
+    private val _dataCollectionEnabled = MutableStateFlow(true)
+    val dataCollectionEnabled: StateFlow<Boolean> = _dataCollectionEnabled
 
     init {
         loadSettingsFromPreferences()

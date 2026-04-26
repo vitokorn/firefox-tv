@@ -136,7 +136,8 @@ fun FirefoxTvApp(
 
                 Screen.Settings -> SettingsScreen(
                     settingsType = currentSettingsScreen,
-                    onBack = { currentScreen = Screen.MenuOverlay }
+                    onBack = { currentScreen = Screen.MenuOverlay },
+                    onNavigateToBrowser = { currentScreen = Screen.Browser }
                 )
 
                 Screen.Onboarding -> OnboardingScreen(

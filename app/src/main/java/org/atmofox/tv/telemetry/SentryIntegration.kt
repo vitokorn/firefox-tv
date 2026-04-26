@@ -6,6 +6,7 @@ package org.atmofox.tv.telemetry
 
 import android.content.Context
 import androidx.annotation.VisibleForTesting
+import androidx.lifecycle.asLiveData
 import io.sentry.Sentry
 import io.sentry.android.AndroidSentryClientFactory
 import mozilla.components.support.base.log.logger.Logger
@@ -43,8 +44,7 @@ object SentryIntegration {
 
         // This listener binds to the Context and observes forever so it's important
         // that we use an appContext to avoid memory leaks.
-        settingsRepo.dataCollectionEnabled.observeForever { isEnabled ->
-            if (isEnabled != null) {
+        settingsRepo.dataCollectionEnabled.asLiveData().observeForever { isEnabled ->
                 // The BuildConfig value is populated from a file at compile time.
                 // If the file did not exist, the value will be null.
                 //
@@ -56,9 +56,9 @@ object SentryIntegration {
                 // disabling the client: https://github.com/getsentry/sentry-java/issues/574#issuecomment-378406105
                 val sentryDsn = if (isEnabled) BuildConfig.SENTRY_DSN else null
                 Sentry.init(sentryDsn, AndroidSentryClientFactory(appContext))
-            }
         }
     }
+
 
     /**
      * Sends the given [exception] to the Sentry servers without crashing the app.
