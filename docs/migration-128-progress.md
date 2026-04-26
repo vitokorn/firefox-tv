@@ -35,7 +35,7 @@
 
 #### 2. Tracking Protection API (MEDIUM)
 - [x] `Settings.kt` - Uses new `TrackingProtectionPolicy.recommended()` / `.select()` API
-- [ ] `TurboMode.kt` - May reference old `TrackingProtectionPolicy.NONE`
+- [x] `TurboMode.kt` - Fixed: removed `null` assignment to `trackingProtectionPolicy`; always uses `settings.trackingProtectionPolicy` which returns a proper disabled policy via `TrackingProtectionPolicy.select(TrackingCategory.NONE)`. Updated `TurboModeTest.kt` to remove references to removed `Session`/`SessionManager` APIs.
 
 #### 3. Search Engine API (MEDIUM)
 - [x] `SearchEngineManagerFactory.kt` - `SearchEngineManager` removed, replaced by `feature-search`

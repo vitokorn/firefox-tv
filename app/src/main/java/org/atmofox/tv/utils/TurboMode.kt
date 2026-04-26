@@ -29,11 +29,7 @@ class TurboMode(private val app: Application) {
         // Update TrackingProtectionPolicy via EngineSettings (v72+ handles propagation automatically)
         if (!skipEngineSettingsUpdate) {
             val engineSettings = app.webRenderComponents.engine.settings
-            if (enabled) {
-                engineSettings.trackingProtectionPolicy = settings.trackingProtectionPolicy
-            } else {
-                engineSettings.trackingProtectionPolicy = null
-            }
+            engineSettings.trackingProtectionPolicy = settings.trackingProtectionPolicy
         }
         _observable.postValue(enabled)
     }

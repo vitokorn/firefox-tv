@@ -7,15 +7,12 @@ package org.atmofox.tv.utils
 import android.content.Context
 import android.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
-import mozilla.components.browser.session.Session
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.atmofox.tv.ext.webRenderComponents
 import org.atmofox.tv.helpers.FirefoxRobolectricTestRunner
-import mozilla.components.browser.engine.system.SystemEngine
 import org.atmofox.tv.ext.application
 
 @RunWith(FirefoxRobolectricTestRunner::class)
@@ -23,13 +20,10 @@ class TurboModeTest {
     private val context: Context
         get() = ApplicationProvider.getApplicationContext()
 
-    private lateinit var session: Session
     private lateinit var turboMode: TurboMode
 
     @Before
     fun setUp() {
-        SystemEngine.defaultUserAgent = "test-ua-string"
-
         // Avoid [Settings] from keeping a references to a shared preference instance from a previous test run.
         Settings.reset()
 
@@ -40,16 +34,12 @@ class TurboModeTest {
             .clear()
             .apply()
 
-        // Add a session so that we can verify the state of it
-        session = Session("about:blank")
-        context.webRenderComponents.sessionManager.add(session)
         turboMode = TurboMode(context.application)
     }
 
     @Test
     fun `Turbo Mode should be enabled by default`() {
         assertTrue(turboMode.isEnabled)
-
         assertTrue(Settings.getInstance(context).isBlockingEnabled)
     }
 
@@ -58,9 +48,7 @@ class TurboModeTest {
         turboMode.isEnabled = false
 
         assertFalse(turboMode.isEnabled)
-
         assertFalse(Settings.getInstance(context).isBlockingEnabled)
-        assertFalse(session.trackerBlockingEnabled)
     }
 
     @Test
@@ -69,8 +57,6 @@ class TurboModeTest {
         turboMode.isEnabled = true
 
         assertTrue(turboMode.isEnabled)
-
         assertTrue(Settings.getInstance(context).isBlockingEnabled)
-        assertTrue(session.trackerBlockingEnabled)
     }
 }
