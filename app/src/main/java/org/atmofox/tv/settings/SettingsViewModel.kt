@@ -1,9 +1,10 @@
 package org.atmofox.tv.settings
 
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import mozilla.components.support.base.observer.Consumable
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.launch
 import org.atmofox.tv.session.SessionRepo
 import org.atmofox.tv.telemetry.TelemetryIntegration
 import org.atmofox.tv.webrender.EngineViewCache
@@ -16,9 +17,9 @@ class SettingsViewModel(
     private val settingsRepo: SettingsRepo,
     private val sessionRepo: SessionRepo
 ) : ViewModel() {
-    private var _events = MutableLiveData<Consumable<SettingsAction>>()
+    private val _events = MutableSharedFlow<SettingsAction>()
 
-    val events: LiveData<Consumable<SettingsAction>> = _events
+    val events: SharedFlow<SettingsAction> = _events
     val dataCollectionEnabled = settingsRepo.dataCollectionEnabled
 
     fun setDataCollectionEnabled(toEnable: Boolean) {
@@ -28,6 +29,8 @@ class SettingsViewModel(
     fun clearBrowsingData(engineViewCache: EngineViewCache) {
         TelemetryIntegration.INSTANCE.clearDataEvent()
         sessionRepo.clearBrowsingData(engineViewCache)
-        _events.value = Consumable.from(SettingsAction.SESSION_CLEARED)
+        viewModelScope.launch {
+            _events.emit(SettingsAction.SESSION_CLEARED)
+        }
     }
 }

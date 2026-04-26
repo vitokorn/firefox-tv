@@ -31,7 +31,8 @@ import mozilla.components.support.ktx.android.os.resetAfter
 import mozilla.components.support.rusthttp.RustHttpConfig
 import org.atmofox.tv.components.locale.LocaleAwareApplication
 import org.atmofox.tv.ext.webRenderComponents
-import androidx.lifecycle.asLiveData
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import org.atmofox.tv.telemetry.SentryIntegration
 import org.atmofox.tv.webrender.VisibilityLifeCycleCallback
 import org.atmofox.tv.telemetry.TelemetryIntegration
@@ -127,13 +128,15 @@ open class FirefoxApplication : LocaleAwareApplication() {
     // overridden to disable ping upload.
     @VisibleForTesting
     protected open fun setGleanUpload() {
-        serviceLocator.settingsRepo.dataCollectionEnabled.asLiveData().observeForever { collectionEnabled ->
-            // This needs to be called before Glean.initialize, or we risk 1) not
-            // sending startup data, or 2) sending even when the user has toggled
-            // off data collection
-            Glean.setUploadEnabled(collectionEnabled)
-            if (collectionEnabled) {
-                // LegacyIds.clientId.set(UUID.fromString(TelemetryIntegration.INSTANCE.clientId))
+        GlobalScope.launch {
+            serviceLocator.settingsRepo.dataCollectionEnabled.collect { collectionEnabled ->
+                // This needs to be called before Glean.initialize, or we risk 1) not
+                // sending startup data, or 2) sending even when the user has toggled
+                // off data collection
+                Glean.setUploadEnabled(collectionEnabled)
+                if (collectionEnabled) {
+                    // LegacyIds.clientId.set(UUID.fromString(TelemetryIntegration.INSTANCE.clientId))
+                }
             }
         }
     }

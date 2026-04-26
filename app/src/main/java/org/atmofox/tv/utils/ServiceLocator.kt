@@ -9,8 +9,7 @@
 package org.atmofox.tv.utils
 
 import android.app.Application
-import androidx.lifecycle.MutableLiveData
-import mozilla.components.support.base.observer.Consumable
+import kotlinx.coroutines.flow.MutableSharedFlow
 import org.atmofox.tv.ScreenController
 import org.atmofox.tv.ValidatedIntentData
 import org.atmofox.tv.architecture.ViewModelFactory
@@ -64,7 +63,7 @@ import org.atmofox.tv.webrender.cursor.CursorModel
 open class ServiceLocator(val app: Application) {
     private val appVersion = app.packageManager.getPackageInfo(app.packageName, 0).versionName
 
-    val intentLiveData by lazy { MutableLiveData<Consumable<ValidatedIntentData?>>() }
+    val intentFlow by lazy { MutableSharedFlow<ValidatedIntentData?>(extraBufferCapacity = 1) }
     val fretboardProvider: FretboardProvider by lazy { FretboardProvider(app) }
     val experimentsProvider by lazy { ExperimentsProvider(fretboardProvider.fretboard, app) }
     val turboMode: TurboMode by lazy { TurboMode(app) }
