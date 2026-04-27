@@ -165,11 +165,11 @@ class MainActivity : LocaleAwareAppCompatActivity(), MediaSessionHolder, OnUrlEn
         val activeScreen = serviceLocator.screenController.currentActiveScreen.value
         if (activeScreen == ScreenControllerStateMachine.ActiveScreen.WEB_RENDER &&
             (event.keyCode == KeyEvent.KEYCODE_DPAD_UP ||
-             event.keyCode == KeyEvent.KEYCODE_DPAD_DOWN ||
-             event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT ||
-             event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ||
-             event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
-             event.keyCode == KeyEvent.KEYCODE_ENTER)
+                    event.keyCode == KeyEvent.KEYCODE_DPAD_DOWN ||
+                    event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT ||
+                    event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ||
+                    event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
+                    event.keyCode == KeyEvent.KEYCODE_ENTER)
         ) {
             val handled = serviceLocator.cursorModel.handleKeyEvent(event)
             handled.simulatedTouch?.let {

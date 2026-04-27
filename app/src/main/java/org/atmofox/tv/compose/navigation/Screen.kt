@@ -16,5 +16,6 @@ enum class SettingsType {
     DATA_COLLECTION,
     CLEAR_COOKIES,
     ABOUT,
-    PRIVACY_POLICY
+    PRIVACY_POLICY,
+    FXA
 }

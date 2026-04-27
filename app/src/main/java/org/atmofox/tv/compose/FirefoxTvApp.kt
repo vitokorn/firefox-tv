@@ -5,6 +5,9 @@
 package org.atmofox.tv.compose
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -140,26 +143,33 @@ fun FirefoxTvApp(
                     onOpenMenu = { currentScreen = Screen.MenuOverlay }
                 )
 
-                Screen.MenuOverlay -> MenuOverlay(
-                    onNavigateToBrowser = { currentScreen = Screen.Browser },
-                    onNavigateToSettings = { settingsType ->
-                        currentSettingsScreen = settingsType
-                        currentScreen = Screen.Settings
-                    },
-                    onNavigateHome = {
-                        pendingMenuUrlLoad = URLs.APP_URL_HOME
-                        currentScreen = Screen.Browser
-                    },
-                    onNavigateToUrl = { url ->
-                        pendingMenuUrlLoad = url
-                        currentScreen = Screen.Browser
-                    }
-                )
+                Screen.MenuOverlay -> AnimatedVisibility(
+                    visible = true,
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    MenuOverlay(
+                        onNavigateToBrowser = { currentScreen = Screen.Browser },
+                        onNavigateToSettings = { settingsType ->
+                            currentSettingsScreen = settingsType
+                            currentScreen = Screen.Settings
+                        },
+                        onNavigateHome = {
+                            pendingMenuUrlLoad = URLs.APP_URL_HOME
+                            currentScreen = Screen.Browser
+                        },
+                        onNavigateToUrl = { url ->
+                            pendingMenuUrlLoad = url
+                            currentScreen = Screen.Browser
+                        }
+                    )
+                }
 
                 Screen.Settings -> SettingsScreen(
                     settingsType = currentSettingsScreen,
                     onBack = { currentScreen = Screen.MenuOverlay },
-                    onNavigateToBrowser = { currentScreen = Screen.Browser }
+                    onNavigateToBrowser = { currentScreen = Screen.Browser },
+                    onSessionCleared = { (context as? android.app.Activity)?.recreate() }
                 )
 
                 Screen.Onboarding -> OnboardingScreen(
