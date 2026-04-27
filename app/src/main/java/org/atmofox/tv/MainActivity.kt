@@ -185,6 +185,10 @@ class MainActivity : LocaleAwareAppCompatActivity(), MediaSessionHolder, OnUrlEn
             if (handled.wasKeyEventConsumed) return true
         }
 
+        if (serviceLocator.screenController.dispatchKeyEvent(event)) {
+            return true
+        }
+
         return super.dispatchKeyEvent(event)
     }
 }

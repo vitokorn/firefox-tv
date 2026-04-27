@@ -139,9 +139,7 @@ fun FirefoxTvApp(
 
     Column(modifier = modifier) {
         when (currentScreen) {
-                Screen.Browser -> BrowserScreen(
-                    onOpenMenu = { currentScreen = Screen.MenuOverlay }
-                )
+                Screen.Browser -> BrowserScreen()
 
                 Screen.MenuOverlay -> AnimatedVisibility(
                     visible = true,

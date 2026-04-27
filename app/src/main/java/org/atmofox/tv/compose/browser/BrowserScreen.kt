@@ -8,9 +8,7 @@ import android.graphics.PointF
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -40,7 +38,6 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import org.atmofox.tv.MainActivity
@@ -67,29 +64,19 @@ import org.atmofox.tv.webrender.YoutubeGreyScreenWorkaround
 import org.atmofox.tv.webrender.cursor.CursorView
 
 /**
- * Main browser screen matching the legacy layout:
- * top nav buttons + URL bar, then the engine view filling the rest.
+ * Browser screen matching the legacy [WebRenderFragment] layout:
+ * full-screen engine view with cursor, progress bar, and hint bar.
+ * The toolbar lives in [MenuOverlay]; this screen has no chrome.
  */
 @Composable
 fun BrowserScreen(
-    onOpenMenu: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        verticalArrangement = Arrangement.Top,
-        horizontalAlignment = Alignment.Start
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        // Unified single-line toolbar: nav + URL + overflow + home + FxA + logo
-        BrowserToolbar(
-            onOpenMenu = onOpenMenu,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 16.dp)
-        )
-
         // Engine view with floating progress pill at bottom-left
         val context = LocalContext.current
         val serviceLocator = context.serviceLocator
@@ -196,17 +183,15 @@ fun BrowserScreen(
             onDispose { job.cancel() }
         }
 
-        Box(modifier = Modifier
-            .fillMaxWidth()
-            .weight(1f)
-            .onGloballyPositioned { coordinates ->
-                cursorModel.screenBounds = PointF(
-                    coordinates.size.width.toFloat(),
-                    coordinates.size.height.toFloat()
-                )
-            }
-        ) {
-            EngineViewCompose(modifier = Modifier.fillMaxSize())
+        EngineViewCompose(
+            modifier = Modifier.fillMaxSize()
+                .onGloballyPositioned { coordinates ->
+                    cursorModel.screenBounds = PointF(
+                        coordinates.size.width.toFloat(),
+                        coordinates.size.height.toFloat()
+                    )
+                }
+        )
             BrowserProgressBar(
                 modifier = Modifier.align(Alignment.BottomStart)
             )
@@ -264,4 +249,3 @@ fun BrowserScreen(
             )
         }
     }
-}
