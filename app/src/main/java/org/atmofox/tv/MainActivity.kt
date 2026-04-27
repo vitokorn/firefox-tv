@@ -35,9 +35,9 @@ interface MediaSessionHolder {
 
 class MainActivity : LocaleAwareAppCompatActivity(), MediaSessionHolder, OnUrlEnteredListener {
     private val LOG_TAG = "MainActivity"
-    // MediaSession stub for compatibility with WebRenderFragment during migration.
-    override val videoVoiceCommandMediaSession: VideoVoiceCommandMediaSession
-        get() = throw NotImplementedError("MediaSession removed during Compose migration")
+    override val videoVoiceCommandMediaSession: VideoVoiceCommandMediaSession by lazy {
+        VideoVoiceCommandMediaSession(this)
+    }
 
     enum class Command {
         BEGIN_LOGIN
@@ -48,7 +48,7 @@ class MainActivity : LocaleAwareAppCompatActivity(), MediaSessionHolder, OnUrlEn
     }
 
     private fun initMediaSession() {
-        // MediaSession removed during Compose migration. Stub for compilation.
+        lifecycle.addObserver(videoVoiceCommandMediaSession)
     }
 
     private inline fun <T> traceStartupSection(name: String, block: () -> T): T {
@@ -147,6 +147,12 @@ class MainActivity : LocaleAwareAppCompatActivity(), MediaSessionHolder, OnUrlEn
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // MediaSession intercepts media play/pause key up events so the WebView
+        // doesn't redundantly handle them. Must run before other dispatchers.
+        if (videoVoiceCommandMediaSession.dispatchKeyEvent(event)) {
+            return true
+        }
+
         // Back presses are all handled through onBackPressed.
         //
         // Note: on device, back presses emit one KEYCODE_BACK. On emulator, they

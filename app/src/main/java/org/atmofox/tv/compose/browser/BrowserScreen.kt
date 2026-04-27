@@ -25,12 +25,45 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import org.atmofox.tv.MainActivity
+import org.atmofox.tv.ScreenControllerStateMachine
 import org.atmofox.tv.compose.engine.EngineViewCompose
+import org.atmofox.tv.compose.theme.PhotonGrey70
+import org.atmofox.tv.compose.theme.TvGray2
+import org.atmofox.tv.ext.addSubmitListenerToInputElements
 import org.atmofox.tv.ext.couldScrollInDirection
+import org.atmofox.tv.ext.focusedDOMElement
+import org.atmofox.tv.ext.isUriYouTubeTV
+import org.atmofox.tv.ext.isUrlWhitelistedForSubmitInputHack
+import org.atmofox.tv.ext.maybeGoBackBeforeFxaSignIn
+import org.atmofox.tv.ext.observeScrollPosition
+import org.atmofox.tv.ext.pauseAllVideoPlaybacks
 import org.atmofox.tv.ext.scrollByClamped
 import org.atmofox.tv.ext.serviceLocator
+import org.atmofox.tv.ext.setupForApp
+import org.atmofox.tv.hint.InactiveHintViewModel
+import org.atmofox.tv.session.SessionRepo
+import org.atmofox.tv.webrender.WebRenderViewModel
+import org.atmofox.tv.webrender.YouTubeBackHandler
+import org.atmofox.tv.webrender.YoutubeGreyScreenWorkaround
 import org.atmofox.tv.webrender.cursor.CursorView
 
 /**
@@ -59,10 +92,90 @@ fun BrowserScreen(
 
         // Engine view with floating progress pill at bottom-left
         val context = LocalContext.current
-        val cursorModel = context.serviceLocator.cursorModel
+        val serviceLocator = context.serviceLocator
+        val cursorModel = serviceLocator.cursorModel
         val cursorScope = rememberCoroutineScope()
         val engineView = remember(context) {
-            context.serviceLocator.engineViewCache.getEngineView(context)
+            serviceLocator.engineViewCache.getEngineView(context)
+        }
+        val lifecycleOwner = LocalLifecycleOwner.current
+        val activity = context as? MainActivity
+
+        // Restore DOM-element cache / focus helpers that the legacy fragment wired via setupForApp().
+        DisposableEffect(engineView) {
+            engineView.setupForApp()
+            onDispose { }
+        }
+
+        // Replicate legacy focusRequests: cache focused DOM element and request focus when
+        // the browser screen becomes the active screen (#1830, #1850).
+        val webRenderViewModel = remember(serviceLocator) {
+            WebRenderViewModel(serviceLocator.screenController, serviceLocator.fxaLoginUseCase)
+        }
+        LaunchedEffect(webRenderViewModel.focusRequests) {
+            webRenderViewModel.focusRequests.collect {
+                engineView.focusedDOMElement.cache()
+                engineView.asView().requestFocus()
+            }
+        }
+
+        // YouTube back handling: SessionRepo emits YouTubeBack / ExitYouTube events which
+        // the legacy fragment routed to YouTubeBackHandler.
+        val youtubeBackHandler = remember(engineView, activity) {
+            if (activity != null) YouTubeBackHandler(engineView, activity) else null
+        }
+        DisposableEffect(youtubeBackHandler) {
+            val job = serviceLocator.sessionRepo.events.onEach { event ->
+                when (event) {
+                    SessionRepo.Event.YouTubeBack -> youtubeBackHandler?.onBackPressed()
+                    SessionRepo.Event.ExitYouTube -> youtubeBackHandler?.goBackBeforeYouTube()
+                }
+            }.launchIn(cursorScope)
+            onDispose { job.cancel() }
+        }
+
+        // YouTube grey-screen workaround (#1865): dispatch dpad keys on resume when on YouTube.
+        DisposableEffect(lifecycleOwner, engineView) {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    val currentUrl = serviceLocator.sessionRepo.currentState().currentUrl
+                    if (currentUrl.isUriYouTubeTV) {
+                        YoutubeGreyScreenWorkaround.invoke(activity)
+                    }
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        }
+
+        // FxA login success → navigate back past FxA sign-in history (#2053).
+        LaunchedEffect(engineView, webRenderViewModel) {
+            webRenderViewModel.onFxaLoginSuccess.collect {
+                engineView.maybeGoBackBeforeFxaSignIn()
+            }
+        }
+
+        // Pause all video playbacks when leaving the browser screen (#1720).
+        DisposableEffect(engineView) {
+            val job = serviceLocator.screenController.currentActiveScreen.onEach { screen ->
+                if (screen != ScreenControllerStateMachine.ActiveScreen.WEB_RENDER) {
+                    engineView.pauseAllVideoPlaybacks()
+                }
+            }.launchIn(cursorScope)
+            onDispose { job.cancel() }
+        }
+
+        // Inject page-load JS workarounds after loading completes.
+        val sessionState by serviceLocator.sessionRepo.state.collectAsState()
+        var wasLoading by remember { mutableStateOf(false) }
+        LaunchedEffect(sessionState.loading, sessionState.currentUrl) {
+            if (wasLoading && !sessionState.loading) {
+                engineView.observeScrollPosition()
+                if (sessionState.currentUrl.isUrlWhitelistedForSubmitInputHack) {
+                    engineView.addSubmitListenerToInputElements()
+                }
+            }
+            wasLoading = sessionState.loading
         }
 
         DisposableEffect(engineView, cursorModel) {
@@ -97,6 +210,35 @@ fun BrowserScreen(
             BrowserProgressBar(
                 modifier = Modifier.align(Alignment.BottomStart)
             )
+
+            // Hint bar placeholder (WebRenderHintViewModel was removed pre-migration).
+            val hintViewModel = remember { InactiveHintViewModel() }
+            val isHintDisplayed by hintViewModel.isDisplayed.collectAsState(initial = false)
+            val hints by hintViewModel.hints.collectAsState(initial = emptyList())
+            androidx.compose.animation.AnimatedVisibility(
+                visible = isHintDisplayed,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier.align(Alignment.BottomCenter)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp)
+                        .background(PhotonGrey70)
+                        .padding(start = 48.dp, end = 48.dp, top = 16.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    val hint = hints.firstOrNull()
+                    if (hint != null) {
+                        Text(
+                            text = hint.text,
+                            fontSize = 18.sp,
+                            color = TvGray2
+                        )
+                    }
+                }
+            }
 
             // TV Cursor overlay for D-pad navigation
             AndroidView(

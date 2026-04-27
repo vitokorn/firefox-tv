@@ -11,11 +11,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import mozilla.components.browser.state.selector.selectedTab
 import mozilla.components.concept.engine.EngineView
 import mozilla.components.feature.session.SessionFeature
+import org.atmofox.tv.MediaSessionHolder
 import org.atmofox.tv.ext.onPauseIfNotNull
 import org.atmofox.tv.ext.onResumeIfNotNull
 import org.atmofox.tv.ext.serviceLocator
+import org.atmofox.tv.ext.setupForApp
 
 /**
  * Compose wrapper around [EngineView] using AndroidView interop.
@@ -34,6 +37,22 @@ fun EngineViewCompose(
     // across BrowserScreen ↔ MenuOverlay composition switches.
     val engineView = remember(context) {
         serviceLocator.engineViewCache.getEngineView(context)
+    }
+
+    DisposableEffect(engineView) {
+        engineView.setupForApp()
+        onDispose { }
+    }
+
+    val mediaSessionHolder = context as? MediaSessionHolder
+    val tabId = remember(engineView) {
+        serviceLocator.store.state.selectedTab?.id ?: ""
+    }
+    DisposableEffect(engineView, tabId) {
+        mediaSessionHolder?.videoVoiceCommandMediaSession?.onCreateEngineView(engineView, tabId)
+        onDispose {
+            mediaSessionHolder?.videoVoiceCommandMediaSession?.onDestroyEngineView(engineView, tabId)
+        }
     }
 
     AndroidView(
