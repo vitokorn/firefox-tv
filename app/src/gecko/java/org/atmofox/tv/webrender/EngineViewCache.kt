@@ -226,7 +226,13 @@ class EngineViewCache(private val sessionRepo: SessionRepo) : LifecycleObserver 
                 }
             }
 
-            override fun onProgressChange(session: GeckoSession, progress: Int) = Unit
+            override fun onProgressChange(session: GeckoSession, progress: Int) {
+                if (progress >= 100 && hasSignaledLoading && lastNonInternalUrl.isNotEmpty()) {
+                    Log.d("EngineViewCache", "onProgressChange: progress=$progress, completing loading for $lastNonInternalUrl")
+                    hasSignaledLoading = false
+                    sessionRepo.forceUpdate(loading = false, url = lastNonInternalUrl)
+                }
+            }
 
             override fun onSecurityChange(
                 session: GeckoSession,
