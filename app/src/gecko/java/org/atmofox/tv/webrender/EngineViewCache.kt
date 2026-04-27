@@ -57,7 +57,10 @@ class EngineViewCache(private val sessionRepo: SessionRepo) : LifecycleObserver 
     private var browserHistoryState: SessionRepo.BrowserHistoryState? = null
 
     private fun String.isInternalBrowserUrl(): Boolean {
-        return this == "about:blank" || this == "data:text/html,<html></html>" || this.startsWith("data:text/html;charset=utf-8;base64,")
+        return this == "about:blank" ||
+            this == "about:home" ||
+            this == "data:text/html,<html></html>" ||
+            this.startsWith("data:text/html")
     }
 
     private fun SessionRepo.BrowserHistoryState.visibleUrl(): String? {
@@ -120,6 +123,29 @@ class EngineViewCache(private val sessionRepo: SessionRepo) : LifecycleObserver 
     private var setupAttempts = 0
     private val maxSetupAttempts = 10
     private var delegateSetupFailed = false
+    private var delegatedSession: GeckoSession? = null
+    private var sessionMonitorAttempts = 0
+    private val maxSessionMonitorAttempts = 30
+
+    private val monitorSessionRunnable = object : Runnable {
+        override fun run() {
+            if (sessionMonitorAttempts >= maxSessionMonitorAttempts) {
+                return
+            }
+            val engineView = cachedView ?: return
+            val geckoView = (engineView.asView() as? FrameLayout)?.getChildAt(0) as? org.mozilla.geckoview.GeckoView
+            val currentSession = geckoView?.session
+            if (currentSession != null && delegatedSession != null && currentSession !== delegatedSession) {
+                Log.d("EngineViewCache", "Detected GeckoSession swap, rebinding delegates. old=$delegatedSession, new=$currentSession")
+                setupAttempts = 0
+                delegateSetupFailed = false
+                setupSessionDelegateIfNeeded()
+                return
+            }
+            sessionMonitorAttempts++
+            handler.postDelayed(this, 100)
+        }
+    }
 
     /**
      * Must be called AFTER SessionFeature.start() has attached the session to the GeckoView.
@@ -139,8 +165,14 @@ class EngineViewCache(private val sessionRepo: SessionRepo) : LifecycleObserver 
         if (session == null) {
             if (setupAttempts < maxSetupAttempts) {
                 setupAttempts++
-                Log.d("EngineViewCache", "Session is null, retrying in 100ms (attempt $setupAttempts/$maxSetupAttempts)")
-                handler.postDelayed({ setupSessionDelegateIfNeeded() }, 100)
+                // First attempt: try immediately without delay
+                val delayMs = if (setupAttempts == 1) 0L else 100L
+                Log.d("EngineViewCache", "Session is null, retrying in ${delayMs}ms (attempt $setupAttempts/$maxSetupAttempts)")
+                if (delayMs > 0) {
+                    handler.postDelayed({ setupSessionDelegateIfNeeded() }, delayMs)
+                } else {
+                    setupSessionDelegateIfNeeded()
+                }
             } else {
                 Log.w("EngineViewCache", "Session is null after $maxSetupAttempts attempts, giving up")
                 delegateSetupFailed = true
@@ -152,21 +184,46 @@ class EngineViewCache(private val sessionRepo: SessionRepo) : LifecycleObserver 
         setupAttempts = 0
         delegateSetupFailed = false
 
+        if (delegatedSession === session) {
+            Log.d("EngineViewCache", "Delegates already attached to current session, skipping rebind")
+            return
+        }
+        delegatedSession = session
+
+        // Keep last known real URL; fallback paths may update this when first onPageStart is missed.
         var lastNonInternalUrl = ""
+        var hasSignaledLoading = false
+        Log.d("EngineViewCache", "Session delegate setup starting: initialUrl=$lastNonInternalUrl")
+
+        fun captureRealUrl(url: String?, shouldSignalLoading: Boolean) {
+            if (url.isNullOrEmpty() || url.isInternalBrowserUrl()) {
+                return
+            }
+            lastNonInternalUrl = url
+            if (shouldSignalLoading && !hasSignaledLoading) {
+                hasSignaledLoading = true
+                sessionRepo.forceUpdate(loading = true, url = url)
+                Log.d("EngineViewCache", "Captured real URL and signaled loading: $url")
+            } else if (!shouldSignalLoading && sessionRepo.currentState().currentUrl != url) {
+                // Keep visible URL in sync even if loading already finished before delegate attached.
+                sessionRepo.forceUpdate(loading = sessionRepo.currentState().loading, url = url)
+                Log.d("EngineViewCache", "Captured real URL without loading transition: $url")
+            }
+        }
 
         session.setProgressDelegate(object : GeckoSession.ProgressDelegate {
             override fun onPageStart(session: GeckoSession, url: String) {
-                Log.d("EngineViewCache", "onPageStart: url=$url")
-                val isInternal = url == "about:blank" || url == "data:text/html,<html></html>" || url.startsWith("data:text/html")
-                if (!isInternal) {
-                    lastNonInternalUrl = url
-                    sessionRepo.forceUpdate(loading = true, url = url)
-                }
+                Log.d("EngineViewCache", "onPageStart: url=$url, hasSignaledLoading=$hasSignaledLoading")
+                captureRealUrl(url, shouldSignalLoading = true)
             }
 
             override fun onPageStop(session: GeckoSession, success: Boolean) {
-                Log.d("EngineViewCache", "onPageStop: success=$success, lastUrl=$lastNonInternalUrl")
-                sessionRepo.forceUpdate(loading = false, url = lastNonInternalUrl)
+                Log.d("EngineViewCache", "onPageStop: success=$success, lastUrl=$lastNonInternalUrl, hasSignaledLoading=$hasSignaledLoading")
+                // Only signal loading=false if we previously signaled loading=true for a real URL.
+                if (hasSignaledLoading && lastNonInternalUrl.isNotEmpty()) {
+                    hasSignaledLoading = false
+                    sessionRepo.forceUpdate(loading = false, url = lastNonInternalUrl)
+                }
             }
 
             override fun onProgressChange(session: GeckoSession, progress: Int) = Unit
@@ -178,18 +235,58 @@ class EngineViewCache(private val sessionRepo: SessionRepo) : LifecycleObserver 
 
             override fun onSessionStateChange(session: GeckoSession, sessionState: GeckoSession.SessionState) {
                 val urls = sessionState.map { it.uri }
-                Log.d("EngineViewCache", "onSessionStateChange: currentIndex=${sessionState.currentIndex}, urls=$urls")
+                Log.d("EngineViewCache", "onSessionStateChange: currentIndex=${sessionState.currentIndex}, urls=$urls, hasSignaledLoading=$hasSignaledLoading")
                 browserHistoryState = SessionRepo.BrowserHistoryState(
                     currentIndex = sessionState.currentIndex,
                     urls = urls
                 )
+
+                val currentUrl = urls.getOrNull(sessionState.currentIndex)
+                val shouldSignalLoading = sessionRepo.currentState().loading
+                captureRealUrl(currentUrl, shouldSignalLoading)
             }
         })
+
+        session.setNavigationDelegate(object : GeckoSession.NavigationDelegate {
+            override fun onLocationChange(
+                session: GeckoSession,
+                url: String?,
+                perms: MutableList<GeckoSession.PermissionDelegate.ContentPermission>,
+                hasUserGesture: Boolean
+            ) {
+                Log.d("EngineViewCache", "onLocationChange: url=$url, hasSignaledLoading=$hasSignaledLoading")
+                // Fallback path: on first load we may miss the real onPageStart, but still receive location updates.
+                captureRealUrl(url, shouldSignalLoading = true)
+            }
+        })
+        
         sessionRepo.browserHistoryState = { browserHistoryState }
         sessionRepo.browserHistoryNavigateToIndex = { index ->
             Log.d("EngineViewCache", "browserHistoryNavigateToIndex: navigating to index $index")
             session.gotoHistoryIndex(index)
         }
+
+        // Fallback for first attach timing: poll BrowserStore-backed state briefly.
+        // Important: this never forces loading=true unless store currently reports loading=true.
+        var fallbackAttempts = 0
+        fun pollRepoForRealUrl() {
+            if (fallbackAttempts >= maxSetupAttempts || hasSignaledLoading) {
+                return
+            }
+            fallbackAttempts++
+            val repoState = sessionRepo.currentState()
+            captureRealUrl(repoState.currentUrl, shouldSignalLoading = repoState.loading)
+            if (!hasSignaledLoading) {
+                handler.postDelayed({ pollRepoForRealUrl() }, 100)
+            }
+        }
+        handler.postDelayed({ pollRepoForRealUrl() }, 100)
+
+        // Monitor initial startup for session swaps; Gecko may replace the session after first attach.
+        sessionMonitorAttempts = 0
+        handler.removeCallbacks(monitorSessionRunnable)
+        handler.postDelayed(monitorSessionRunnable, 100)
+
         Log.d("EngineViewCache", "Session delegate setup complete")
     }
 
@@ -207,6 +304,8 @@ class EngineViewCache(private val sessionRepo: SessionRepo) : LifecycleObserver 
         handler.removeCallbacksAndMessages(null)
         setupAttempts = 0
         delegateSetupFailed = false
+        delegatedSession = null
+        sessionMonitorAttempts = 0
         sessionRepo.canGoBackTwice = null
         sessionRepo.browserHistoryState = null
         sessionRepo.browserHistoryNavigateToIndex = null

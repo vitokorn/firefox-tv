@@ -72,15 +72,19 @@ fun FirefoxTvApp(
         null
     }
 
-    LaunchedEffect(currentScreen, isBrowserInitialized) {
+    LaunchedEffect(currentScreen, isBrowserInitialized, pendingMenuUrlLoad) {
         if (currentScreen == Screen.Browser && !isBrowserInitialized) {
             // Initialize browser engine/store/session lazily on first browser entry.
             if (context.webRenderComponents.store.state.selectedTab == null) {
+                val initialUrl = pendingMenuUrlLoad ?: URLs.APP_URL_HOME
                 val newTab = TabSessionState(
                     id = "initial-session",
-                    content = ContentState(url = URLs.APP_URL_HOME)
+                    content = ContentState(url = initialUrl)
                 )
                 context.webRenderComponents.store.dispatch(TabListAction.AddTabAction(newTab, select = true))
+                if (pendingMenuUrlLoad != null) {
+                    pendingMenuUrlLoad = null
+                }
             }
             serviceLocator.sessionRepo.update()
             lifecycleOwner.lifecycle.addObserver(serviceLocator.engineViewCache)
@@ -88,9 +92,9 @@ fun FirefoxTvApp(
         }
     }
 
-    LaunchedEffect(isBrowserInitialized, pendingMenuUrlLoad) {
+    LaunchedEffect(isBrowserInitialized, currentScreen, pendingMenuUrlLoad) {
         val url = pendingMenuUrlLoad
-        if (isBrowserInitialized && url != null) {
+        if (isBrowserInitialized && currentScreen == Screen.Browser && url != null) {
             serviceLocator.sessionUseCases.loadUrl.invoke(url)
             pendingMenuUrlLoad = null
         }

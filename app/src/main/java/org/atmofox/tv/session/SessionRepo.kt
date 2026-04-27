@@ -77,7 +77,7 @@ class SessionRepo(
     private var storeSubscription: Any? = null
 
     private fun String.isInternalBrowserUrl(): Boolean {
-        return this == "about:blank" || this == "data:text/html,<html></html>" ||
+        return this == "about:blank" || this == "about:home" || this == "data:text/html,<html></html>" ||
                 UrlUtils.isInternalErrorURL(this)
     }
 

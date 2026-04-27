@@ -150,7 +150,8 @@ fun MenuOverlay(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 NavigationControls(
-                    observeBrowserState = false,
+                    onOpenMenu = onNavigateToBrowser,
+                    observeBrowserState = true,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -159,7 +160,7 @@ fun MenuOverlay(
             UrlBar(
                 onSubmit = onNavigateToBrowser,
                 onSubmitUrl = loadUrlAndNavigateToBrowser,
-                observeBrowserState = false,
+                observeBrowserState = true,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = 57.dp, end = 57.dp, bottom = 48.dp)

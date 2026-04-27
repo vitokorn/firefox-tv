@@ -89,7 +89,10 @@ fun NavigationControls(
     }
     val isCurrentUrlPinned = pinnedTiles.containsKey(state.currentUrl)
     val isHomepage = state.currentUrl == URLs.APP_URL_HOME ||
+            state.currentUrl == "about:blank" ||
+            state.currentUrl == "about:home" ||
             state.currentUrl == "data:text/html,<html></html>" ||
+            state.currentUrl.startsWith("data:text/html") ||
             state.currentUrl.isEmpty()
 
     Row(
@@ -103,8 +106,13 @@ fun NavigationControls(
         NavButton(
             iconRes = R.drawable.mozac_ic_back,
             contentDescription = "Back",
-            enabled = sessionRepo != null && state.backEnabled,
-            onClick = { sessionRepo?.attemptBack() }
+            enabled = sessionRepo != null,
+            onClick = {
+                val handled = sessionRepo?.attemptBack() == true
+                if (!handled) {
+                    onOpenMenu()
+                }
+            }
         )
         NavButton(
             iconRes = R.drawable.mozac_ic_forward,
@@ -115,8 +123,11 @@ fun NavigationControls(
         NavButton(
             iconRes = R.drawable.mozac_ic_refresh,
             contentDescription = "Reload",
-            enabled = sessionRepo != null,
-            onClick = { sessionRepo?.reload() }
+            enabled = sessionRepo != null && !isHomepage,
+            onClick = {
+                sessionRepo?.reload()
+                onOpenMenu()
+            }
         )
 
         // ── Checkable actions ──
@@ -143,6 +154,7 @@ fun NavigationControls(
                 if (sessionRepo != null) {
                     sessionRepo.setTurboModeEnabled(!state.turboModeActive, skipEngineSettingsUpdate = isHomepage)
                     if (!isHomepage) sessionRepo.reload()
+                    onOpenMenu()
                 }
             }
         )
@@ -154,6 +166,7 @@ fun NavigationControls(
             checked = state.desktopModeActive,
             onClick = {
                 sessionRepo?.setDesktopMode(!state.desktopModeActive)
+                onOpenMenu()
             }
         )
 
